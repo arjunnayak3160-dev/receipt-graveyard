@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from PIL import Image
 import io
+import json
 
 # Try loading the free offline OCR engine
 try:
@@ -28,6 +29,7 @@ def load_lottie_url(url: str):
 # Load sleek tech/scanning and success animations
 lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
 lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
+
 # --- PAGE SETUP & APPLE TRANSLUCENT CSS THEME ---
 st.set_page_config(page_title="The Receipt Graveyard", page_icon="🧾", layout="wide")
 
@@ -134,6 +136,9 @@ if "policy_versions" not in st.session_state:
             "banned_categories": ["Alcohol", "Tobacco", "Mini-Bar", "Fines"]
         }
     ]
+
+if "admin_authenticated" not in st.session_state:
+    st.session_state.admin_authenticated = False
 
 active_policy = st.session_state.policy_versions[-1]
 
@@ -431,7 +436,6 @@ elif user_role == "👤 Employee Portal":
         if not uploaded_files and not use_custom:
             st.warning("⚠️ Please upload a receipt image first.")
         else:
-            # Create an eye-catching visual container for the scan process
             animation_placeholder = st.empty()
             status_text = st.empty()
 
@@ -441,7 +445,6 @@ elif user_role == "👤 Employee Portal":
             
             status_text.markdown("<p style='text-align: center; color: #60a5fa;'>🔍 AI Engine reading OCR text, verifying GST math & matching policy...</p>", unsafe_allow_html=True)
 
-            # --- YOUR PROCESSING LOGIC STARTS HERE ---
             files_to_process = uploaded_files if uploaded_files else [None]
             for uf in files_to_process:
                 fname = uf.name if uf else "manual_bill.png"
@@ -468,9 +471,7 @@ elif user_role == "👤 Employee Portal":
                     "employee_message": res["employee_message"], "finance_reasoning": res["finance_reasoning"],
                     "raw_receipt": rec, "image_bytes": img_bytes
                 })
-            # --- YOUR PROCESSING LOGIC ENDS HERE ---
 
-            # Clear the scanning animation and show success
             animation_placeholder.empty()
             status_text.empty()
 
@@ -478,17 +479,22 @@ elif user_role == "👤 Employee Portal":
                 st_lottie(lottie_success, height=100, key="success_anim")
             
             st.success("✅ Receipt successfully scanned, audited, and added to ledger!")
+
 # ==============================================================================
-# PORTAL 2: FINANCE REVIEWER PORTAL
+# PORTAL 2: FINANCE REVIEWER PORTAL (WITH PIN PROTECTION & BACKUP/RESTORE)
 # ==============================================================================
 elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
     st.title("🕵️‍♂️ Finance Governance Center")
-    pin = st.sidebar.text_input("Admin PIN (1234)", value="1234", type="password")
+    
+    # Secure PIN Gate
+    pin = st.sidebar.text_input("Admin PIN (1234)", value="", type="password")
     if pin != "1234":
-        st.error("Access Denied. Enter PIN 1234.")
+        st.warning("🔒 Please enter the Admin PIN (`1234`) in the sidebar to access governance features.")
         st.stop()
+    else:
+        st.success("🔓 Admin access verified successfully.")
 
-    tab1, tab2, tab3 = st.tabs(["🚨 Audit Queue", "🛡️ Policy Control (Option C)", "📊 Monthly Ledger"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🚨 Audit Queue", "🛡️ Policy Control (Option C)", "📊 Monthly Ledger", "💾 Backup & Restore"])
 
     with tab1:
         if not st.session_state.ledger:
@@ -541,6 +547,46 @@ elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
             st.dataframe(df, use_container_width=True)
             st.download_button("Download CSV Ledger", df.to_csv(index=False).encode("utf-8"), "ledger.csv", "mime/csv")
 
+    with tab4:
+        st.subheader("💾 Export & Import System Backups")
+        
+        col_exp, col_imp = st.columns(2)
+        
+        with col_exp:
+            st.markdown("##### Export Backup")
+            backup_data = {
+                "export_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "active_policy_version": active_policy["version"],
+                "policy_versions_history": st.session_state.policy_versions,
+                "audit_ledger": [{k: v for k, v in item.items() if k != "image_bytes"} for item in st.session_state.ledger]
+            }
+            json_string = json.dumps(backup_data, indent=4, default=str)
+            st.download_button(
+                label="📥 Download JSON Backup",
+                data=json_string,
+                file_name=f"finance_policy_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+
+        with col_imp:
+            st.markdown("##### Restore Backup")
+            uploaded_backup = st.file_uploader("Upload Backup JSON", type=["json"])
+            if uploaded_backup is not None:
+                try:
+                    backup_content = json.load(uploaded_backup)
+                    if "policy_versions_history" in backup_content and "audit_ledger" in backup_content:
+                        st.success("Backup validated successfully!")
+                        if st.button("⚠️ Confirm & Overwrite State", type="primary", use_container_width=True):
+                            st.session_state.policy_versions = backup_content["policy_versions_history"]
+                            st.session_state.ledger = backup_content["audit_ledger"]
+                            st.success("System restored successfully! Refreshing...")
+                            st.rerun()
+                    else:
+                        st.error("Invalid backup format: Missing keys.")
+                except Exception as e:
+                    st.error(f"Failed to parse JSON: {e}")
+
 # ==============================================================================
 # PORTAL 3: CHANGE HISTORY
 # ==============================================================================
@@ -559,5 +605,3 @@ elif user_role == "📜 Change History":
             ---
             """
             )
-
-<FollowUp label="Want to export this policy engine configuration directly into a JSON file?" query="How do I export the current policy version configuration and audit ledger into a downloadable JSON backup file?" />
