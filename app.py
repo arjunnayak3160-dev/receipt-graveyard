@@ -116,12 +116,21 @@ if "policy_versions" not in st.session_state:
             "updated_by": "System Default (CFO Office)",
             "timestamp": "2026-10-01 09:00:00",
             "reason": "Initial Q4 Corporate Expense Policy release",
+            "filing_window_days": 30,
+            "big_ticket_threshold": 15000.0,
             "home_cap": 500.0,
-            "tier1_cap": 2500.0,
+            "tier1_cap": 25000.0,
             "tier2_cap": 1500.0,
             "mgr_threshold": 2000.0,
             "client_threshold": 1500.0,
             "max_tip_pct": 10.0,
+            "travel_city_limit": 5000.0,
+            "travel_category_cap": 25000.0,
+            "client_meal_cap": 3500.0,
+            "comm_tech_cap": 4000.0,
+            "fuel_slab_cc": 1500,
+            "meal_card_limit": 200.0,
+            "meal_card_max_per_day": 2,
             "banned_categories": ["Alcohol", "Tobacco", "Mini-Bar", "Fines"]
         }
     ]
@@ -227,10 +236,11 @@ def run_deterministic_audit(receipt: dict, employee: str, context: str, client_i
                 risk_score = 95
                 reimbursable_inr = 0.0
 
-    if total_inr > 500.0 and not receipt.get("is_itemized", True):
-        violations.append("NON_ITEMIZED_RECEIPT: Slip over ₹500 without tax invoice.")
+    big_ticket = policy.get("big_ticket_threshold", 15000.0)
+    has_company_gstin = receipt.get("has_company_gstin", True)
+    if total_inr >= big_ticket and not has_company_gstin:
+        violations.append(f"BIG_TICKET_GST_MISSING: Purchase >= ₹{big_ticket:,.0f} lacks mandatory company GSTIN.")
         risk_score += 35
-        reimbursable_inr = 0.0
 
     if "Home Office" in context:
         daily_cap = policy["home_cap"]
@@ -275,22 +285,22 @@ def run_deterministic_audit(receipt: dict, employee: str, context: str, client_i
 with st.sidebar:
     st.markdown("### 🧾 Receipt Graveyard")
     st.caption(f"🛡️ Policy: **{active_policy['version']}**")
-    user_role = st.radio("Portal Navigation", ["👤 Employee Portal", "🕵️‍♂️ Finance Reviewer Portal"])
+    user_role = st.radio("Portal Navigation", ["📋 Current Policy View", "👤 Employee Portal", "🕵️‍♂️ Finance Reviewer Portal", "📜 Change History"])
     st.divider()
 
     if st.button("📥 Load Demo Dataset (5 Bills)", use_container_width=True):
         demo_bills = [
             ("toit_brewpub.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", {
                 "merchant_name": "Toit Brewpub, Indiranagar", "transaction_date": "2026-10-15", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 2250.0, "tax": 112.50, "tip": 225.0, "total_printed": 2587.50, "is_itemized": True, "handwritten_tampering": False
+                "subtotal": 2250.0, "tax": 112.50, "tip": 225.0, "total_printed": 2587.50, "is_itemized": True, "handwritten_tampering": False, "has_company_gstin": True
             }),
             ("upi_screenshot.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", {
                 "merchant_name": "Toit Brewpub Bengaluru (UPI)", "transaction_date": "2026-10-15", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 0.0, "tax": 0.0, "tip": 0.0, "total_printed": 2587.50, "is_itemized": False, "handwritten_tampering": False
+                "subtotal": 0.0, "tax": 0.0, "tip": 0.0, "total_printed": 2587.50, "is_itemized": False, "handwritten_tampering": False, "has_company_gstin": False
             }),
             ("mumbai_taxi.png", "Priya Nair (Engineering)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "", {
                 "merchant_name": "Shree Sai Tours & Taxi", "transaction_date": "2026-10-16", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 650.0, "tax": 100.0, "tip": 50.0, "total_printed": 1800.0, "is_itemized": True, "handwritten_tampering": True
+                "subtotal": 650.0, "tax": 100.0, "tip": 50.0, "total_printed": 1800.0, "is_itemized": True, "handwritten_tampering": True, "has_company_gstin": True
             })
         ]
         for fname, emp, ctx, cli, custom in demo_bills:
@@ -310,9 +320,86 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
+# PORTAL 0: CURRENT POLICY VIEW
+# ==============================================================================
+if user_role == "📋 Current Policy View":
+    st.title("Corporate Financial Policy Framework")
+    st.markdown("Overview of active governance rules, automated thresholds, and compliance guardrails.")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Filing Window", f"{active_policy['filing_window_days']} Days")
+    col2.metric("Big-Ticket Threshold", f"₹{active_policy['big_ticket_threshold']:,.0f}")
+    col3.metric("Meal Card Cap", f"₹{active_policy['meal_card_limit']} / meal")
+
+    st.markdown("---")
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["1. General Rules", "2. Categories", "3. Meal Cards", "4. Allowances", "5. Approvals"]
+    )
+
+    with tab1:
+        st.subheader("General Claim Rules")
+        st.markdown(
+            f"""
+        | Rule | System Check | Non-Compliance Action |
+        |---|---|---|
+        | **Valid Bill Required** | Vendor, date, itemized prices, and description present | Reject or Request Info |
+        | **GST Invoice** | Purchases exceeding **₹{active_policy['big_ticket_threshold']:,.0f}** must carry company GSTIN | Flag for Review |
+        | **Merchant GSTIN** | Valid merchant tax registration verified | Flag |
+        | **Filing Window** | Claims submitted within **{active_policy['filing_window_days']} days** of expense | Reject |
+        | **Audit Trail** | Immutable storage of all receipts, edits, and decisions | Automatic |
+        """
+        )
+
+    with tab2:
+        st.subheader("Expense Categories & Limits")
+        st.markdown(
+            f"""
+        | Category | Limits & Settings |
+        |---|---|
+        | **Official Travel & Conveyance** | City Daily Cap: ₹{active_policy['travel_city_limit']:,.0f} \| Category Cap: ₹{active_policy['travel_category_cap']:,.0f} |
+        | **Client Entertainment** | Per Meal Cap: ₹{active_policy['client_meal_cap']:,.0f} (Attendee list required) |
+        | **Communication & Tech** | Category Cap: ₹{active_policy['comm_tech_cap']:,.0f} / month |
+        | **Fuel & Maintenance** | Slabs based on engine capacity (Max CC: {active_policy['fuel_slab_cc']}cc) |
+        """
+        )
+
+    with tab3:
+        st.subheader("Digital Meal Cards (Pluxee / Sodexo Style)")
+        st.markdown(
+            f"""
+        * **Per Meal Limit:** ₹{active_policy['meal_card_limit']} (Up to {active_policy['meal_card_max_per_day']} meals per working day counted).
+        * **Card Mechanism:** Strictly closed-loop or semi-closed prepaid cards; zero cash payouts allowed.
+        * **Merchant Lock:** Restricted exclusively to Food & Beverage MCC codes.
+        * **Deduplication:** Automatically blocks duplicate claims for meals already expensed on corporate cards.
+        """
+        )
+
+    with tab4:
+        st.subheader("Proof-Based Payroll Allowances")
+        st.markdown(
+            """
+        * **HRA:** Exempt amount based on rent minus 10% basic, capped at 50% (metros) or 40% (non-metros). Landlord PAN required above ₹1,00,000 annual rent.
+        * **LTA:** Travel cost exemption claimable twice in a 4-year block period.
+        * **Children Education:** Capped at a maximum of 2 children.
+        * **Telephony & Internet:** 100% tax-free reimbursement upon actual billing.
+        """
+        )
+
+    with tab5:
+        st.subheader("Approval Workflow Structure")
+        st.markdown(
+            """
+        1. **Level 1 (Direct Manager):** Validates operational necessity and business relevance.
+        2. **Level 2 (Finance / AP Reviewer):** Audits limits, tax compliance, and GST validity.
+        3. **Payout Execution:** Automated direct bank credit synced with payroll cycles.
+        """
+        )
+
+# ==============================================================================
 # PORTAL 1: EMPLOYEE PORTAL
 # ==============================================================================
-if user_role == "👤 Employee Portal":
+elif user_role == "👤 Employee Portal":
     st.title("👤 Employee Expense Submission")
     st.caption("Upload receipts to get reimbursed securely under automated corporate policy.")
 
@@ -327,6 +414,7 @@ if user_role == "👤 Employee Portal":
             "Business Trip - Tier 2 City (Pune / Jaipur / Kochi)"
         ])
         client_info = st.text_input("Client Name & Attendees", placeholder="e.g., Infosys - 3 Attendees")
+        has_company_gstin = st.checkbox("Carries Company GSTIN (for big-ticket items)", value=True)
         uploaded_files = st.file_uploader("Upload Receipt (JPG/PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
         with st.expander("🧪 Manual Override Simulator"):
@@ -364,10 +452,11 @@ if user_role == "👤 Employee Portal":
                     custom_dict = {
                         "merchant_name": c_merch, "transaction_date": c_date, "currency": "INR", "fx_rate_to_inr": 1.0,
                         "subtotal": c_sub, "tax": c_tax, "tip": 0.0, "total_printed": c_tot,
-                        "is_itemized": True, "handwritten_tampering": False
+                        "is_itemized": True, "handwritten_tampering": False, "has_company_gstin": has_company_gstin
                     }
 
                 rec = parse_receipt_from_image_bytes(img_bytes, fname, custom_dict)
+                rec["has_company_gstin"] = has_company_gstin
                 res = run_deterministic_audit(rec, employee_name, trip_context, client_info, active_policy, st.session_state.ledger)
 
                 st.session_state.ledger.append({
@@ -420,19 +509,55 @@ elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
 
     with tab2:
         st.markdown("#### Safeguarded Policy Versioning")
-        author_name = st.text_input("Reviewer Name", "Vikram Mehta")
-        change_reason = st.text_input("Justification", "Q4 Cap Adjustment")
-        new_t1 = st.number_input("Tier-1 Metro Cap (₹)", value=float(active_policy["tier1_cap"]))
-        if st.button("Commit New Policy Version"):
-            next_ver = f"v1.{len(st.session_state.policy_versions)}"
-            new_pol = dict(active_policy)
-            new_pol.update({"version": next_ver, "updated_by": author_name, "reason": change_reason, "tier1_cap": new_t1, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-            st.session_state.policy_versions.append(new_pol)
-            st.success(f"Published {next_ver} successfully!")
-            st.rerun()
+        with st.form("policy_editor_form"):
+            author_name = st.text_input("Reviewer Name", "Vikram Mehta")
+            change_reason = st.text_input("Justification", "Q4 Cap Adjustment")
+            new_filing = st.number_input("Filing Window (Days)", min_value=1, max_value=180, value=int(active_policy.get("filing_window_days", 30)))
+            new_big_ticket = st.number_input("Big-Ticket GST Threshold (₹)", min_value=1000.0, max_value=100000.0, value=float(active_policy.get("big_ticket_threshold", 15000.0)), step=1000.0)
+            new_t1 = st.number_input("Tier-1 Metro Daily Cap (₹)", value=float(active_policy["tier1_cap"]))
+            new_meal_limit = st.number_input("Meal Card Limit per Meal (₹)", value=float(active_policy.get("meal_card_limit", 200.0)))
+            
+            commit_btn = st.form_submit_button("Commit New Policy Version")
+            if commit_btn:
+                next_ver = f"v1.{len(st.session_state.policy_versions)}"
+                new_pol = dict(active_policy)
+                new_pol.update({
+                    "version": next_ver,
+                    "updated_by": author_name,
+                    "reason": change_reason,
+                    "filing_window_days": new_filing,
+                    "big_ticket_threshold": new_big_ticket,
+                    "tier1_cap": new_t1,
+                    "meal_card_limit": new_meal_limit,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                st.session_state.policy_versions.append(new_pol)
+                st.success(f"Published {next_ver} successfully!")
+                st.rerun()
 
     with tab3:
         if st.session_state.ledger:
             df = pd.DataFrame(st.session_state.ledger).drop(columns=["raw_receipt", "image_bytes"], errors="ignore")
             st.dataframe(df, use_container_width=True)
             st.download_button("Download CSV Ledger", df.to_csv(index=False).encode("utf-8"), "ledger.csv", "mime/csv")
+
+# ==============================================================================
+# PORTAL 3: CHANGE HISTORY
+# ==============================================================================
+elif user_role == "📜 Change History":
+    st.title("Policy Change History")
+    st.markdown("Immutable audit ledger recording all modifications made by policy owners.")
+
+    for record in st.session_state.policy_versions:
+        with st.container():
+            st.markdown(
+                f"""
+            **🕒 {record.get('timestamp', 'N/A')}** (Version: `{record['version']}`)  
+            * **Updated By:** {record.get('updated_by', 'System')}  
+            * **Reason:** {record.get('reason', 'Initial release')}  
+            * **Key Parameters:** Filing Window = {record.get('filing_window_days', 30)}d, Big-Ticket = ₹{record.get('big_ticket_threshold', 15000):,.0f}, Tier-1 Cap = ₹{record.get('tier1_cap', 25000):,.0f}
+            ---
+            """
+            )
+
+<FollowUp label="Want to export this policy engine configuration directly into a JSON file?" query="How do I export the current policy version configuration and audit ledger into a downloadable JSON backup file?" />
