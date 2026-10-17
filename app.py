@@ -27,8 +27,8 @@ def load_lottie_url(url: str):
 lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
 lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
 
-# --- PAGE SETUP & REFINED PROFESSIONAL CSS ---
-st.set_page_config(page_title="The Receipt Graveyard | Enterprise Audit OS", page_icon="■", layout="wide", initial_sidebar_state="expanded")
+# --- PAGE SETUP & CLEAN PROFESSIONAL CSS ---
+st.set_page_config(page_title="The Receipt Graveyard | Enterprise Audit OS", page_icon="🧾", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -55,10 +55,6 @@ st.markdown("""
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         color: #cbd5e1;
     }
-
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
 
     .feature-card {
         background: rgba(255, 255, 255, 0.02);
@@ -418,7 +414,7 @@ if user_role == "Welcome":
     col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
     with col_c2:
         if st.button("Launch Application Portal", use_container_width=True):
-            st.toast("Navigating to Employee Portal...", icon="■")
+            st.toast("Navigating to Employee Portal...")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
