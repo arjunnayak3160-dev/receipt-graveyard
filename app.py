@@ -926,7 +926,7 @@ elif st.session_state.auth["stage"] == "app" and st.session_state.auth["user"]["
 
             # Colleagues ("People with me")
             other_emps = [u for u in st.session_state.users if u["role"] == "emp" and u["id"] != user["id"]]
-            colleague_Selection = st.multiselect(
+            colleague_selection = st.multiselect(
                 "People with me (Colleagues)",
                 options=[u["id"] for u in other_emps],
                 format_func=lambda x: f"{get_user(x)['name']} ({x})"
@@ -979,7 +979,7 @@ elif st.session_state.auth["stage"] == "app" and st.session_state.auth["user"]["
                         "amt": float(amount),
                         "inr": round(float(amount) * FX_RATES[cur_code], 2),
                         "clients": clients_collected,
-                        "col": colleague_Selection,
+                        "col": colleague_selection,
                         "notes": notes_txt.strip(),
                         "items": items_txt.strip(),
                         "small": bool(ocr_info["is_small"] or sim_blurry),
@@ -1181,7 +1181,7 @@ elif st.session_state.auth["stage"] == "app" and st.session_state.auth["user"]["
     # --- TAB 2: FLAGGED EMPLOYEES MONITOR ---
     with rtab2:
         st.markdown("### Flagged Employees (Last 30 Days Behavioral & Limit Analysis)")
-        flagged_ count = 0
+        flagged_count = 0
         for emp in [u for u in st.session_state.users if u["role"] == "emp"]:
             emp_rs = [
                 r for r in st.session_state.ledger
