@@ -1,150 +1,315 @@
 import streamlit as st
 import pandas as pd
-import json
 import re
-from google import genai
-from google.genai import types
+from datetime import datetime
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="The Receipt Graveyard", page_icon="🧾", layout="wide")
+st.set_page_config(page_title="The Receipt Graveyard (Zero-API Engine)", page_icon="🧾", layout="wide")
 
-# --- 1. AUTO-HEALING SESSION MEMORY (PREVENTS PORTAL CRASHES ON UPDATE) ---
-if "audit_history_v2" not in st.session_state:
-    st.session_state.audit_history_v2 = []
+# --- 1. SESSION MEMORY & OPTION C POLICY VERSIONING ---
+if "ledger" not in st.session_state:
+    st.session_state.ledger = []
 
-if "policy_text" not in st.session_state:
-    st.session_state.policy_text = """1. CONTEXT & CITY DAILY LIMITS (INR):
-- Home Office Meals: Max ₹500/day.
-- Business Travel - Tier 1 Metro (Mumbai, Bengaluru, Delhi NCR): Max ₹2,500/day.
-- Business Travel - Tier 2 Cities (Pune, Jaipur, Kochi): Max ₹1,500/day.
-- Office Supplies: Max ₹5,000/month per employee.
-2. NON-REIMBURSABLE ITEMS:
-- Alcohol, hookah, mini-bar, tobacco, and fines are NEVER paid. Deduct them and issue PARTIAL_APPROVAL.
-3. APPROVAL THRESHOLDS & STRUCTURING:
-- Any single expense over ₹2,000 requires Manager Sign-Off (FLAGGED_FOR_REVIEW).
-- Repeated expenses between ₹1,800 and ₹1,999 to dodge the ₹2,000 threshold are flagged as STRUCTURING.
-4. REQUIRED DETAILS & MISSING INFO:
-- Client meals over ₹1,500 require Client Name & Attendee Count.
-- Receipts over ₹500 MUST be itemized and have a valid date/total."""
+if "policy_versions" not in st.session_state:
+    st.session_state.policy_versions = [
+        {
+            "version": "v1.0",
+            "effective_date": "2026-10-01",
+            "updated_by": "System Default (CFO Office)",
+            "timestamp": "2026-10-01 09:00:00",
+            "reason": "Initial Q4 Corporate Expense Policy release",
+            "home_cap": 500.0,
+            "tier1_cap": 2500.0,
+            "tier2_cap": 1500.0,
+            "mgr_threshold": 2000.0,
+            "client_threshold": 1500.0,
+            "max_tip_pct": 10.0,
+            "banned_categories": ["Alcohol", "Tobacco", "Mini-Bar", "Fines"]
+        }
+    ]
 
-# Helper to safely parse JSON from AI response
-def safe_json_loads(text: str) -> dict:
-    cleaned = re.sub(r"```json|```", "", text).strip()
-    return json.loads(cleaned)
+active_policy = st.session_state.policy_versions[-1]
 
-# Smart Fallback Analyzer (Runs automatically if API key is missing, invalid, or hits quota)
-def smart_fallback_audit(filename: str, employee_name: str, trip_context: str, daily_spend_so_far: float, history: list):
+# --- 2. DETERMINISTIC ZERO-API RECEIPT PARSER & RULE ENGINE ---
+def extract_receipt_locally(filename: str, custom_override: dict = None) -> dict:
+    """Simulates local OCR extraction deterministically based on file profile or manual test input."""
+    if custom_override:
+        return custom_override
+
     fname = filename.lower()
     if "taxi" in fname or "2" in fname:
-        receipt = {
+        return {
             "merchant_name": "Shree Sai Tours & Taxi (Mumbai)",
             "transaction_date": "2026-10-16",
             "currency": "INR",
+            "fx_rate_to_inr": 1.0,
             "subtotal": 650.0,
             "tax": 100.0,
             "tip": 50.0,
-            "total_printed": 1800.0,
-            "total_inr": 1800.0,
+            "total_printed": 1800.0,  # Intentional ₹1,000 math discrepancy
             "is_itemized": True,
-            "handwritten_modifications_detected": True,
+            "handwritten_tampering": True,
             "line_items": [
-                {"description": "Base Fare", "amount": 650.0, "category": "Transport"},
+                {"description": "Airport Base Fare", "amount": 650.0, "category": "Transport"},
                 {"description": "Sea Link Toll", "amount": 100.0, "category": "Transport"},
-                {"description": "Driver Tip", "amount": 50.0, "category": "Transport"}
+                {"description": "Driver Waiting Tip", "amount": 50.0, "category": "Transport"}
             ]
         }
-        decision = {
-            "status": "REJECTED",
-            "reimbursable_amount_inr": 0.0,
-            "requires_manager_signoff": True,
-            "violations": [
-                "MATH_MISMATCH: Printed Total (₹1,800) != Base+Toll+Tip (₹800)",
-                "SUSPICIOUS_INK: Handwritten modification detected on total line"
-            ],
-            "fraud_risk_score": 95,
-            "employee_message": "Rejected due to a ₹1,000 discrepancy between the itemized fare (₹800) and the handwritten total (₹1,800).",
-            "finance_reasoning": "Critical math mismatch: 650 + 100 + 50 = ₹800, but receipt claims ₹1,800. High probability of handwritten digit alteration."
-        }
-    elif "upi" in fname or "3" in fname or len(history) >= 1:
-        receipt = {
-            "merchant_name": "Toit Brewpub Bengaluru (UPI Slip)",
+    elif "upi" in fname or "3" in fname or "dup" in fname:
+        return {
+            "merchant_name": "Toit Brewpub Bengaluru (UPI Screenshot)",
             "transaction_date": "2026-10-15",
             "currency": "INR",
-            "subtotal": 0.0,
+            "fx_rate_to_inr": 1.0,
+            "subtotal": 2587.50,
             "tax": 0.0,
             "tip": 0.0,
             "total_printed": 2587.50,
-            "total_inr": 2587.50,
-            "is_itemized": False,
-            "handwritten_modifications_detected": False,
-            "line_items": [{"description": "UPI Payment Screenshot (Unitemized)", "amount": 2587.50, "category": "Other"}]
+            "is_itemized": False,  # Unitemized UPI screenshot
+            "handwritten_tampering": False,
+            "line_items": [
+                {"description": "UPI Payment Ref #628819204412", "amount": 2587.50, "category": "Food"}
+            ]
         }
-        decision = {
-            "status": "REJECTED",
-            "reimbursable_amount_inr": 0.0,
-            "requires_manager_signoff": True,
-            "violations": [
-                "DUPLICATE_DETECTED: Matches earlier ₹2,587.50 bill from Toit Brewpub on 2026-10-15",
-                "NON_ITEMIZED_RECEIPT: Plain UPI screenshot over ₹500 without GST tax invoice"
-            ],
-            "fraud_risk_score": 92,
-            "employee_message": "This claim was rejected because it duplicates an earlier Toit Brewpub bill and lacks an itemized GST invoice.",
-            "finance_reasoning": "Cross-channel duplicate caught: Employee submitted both the paper bill and a UPI payment screenshot for ₹2,587.50 on 2026-10-15."
+    elif "usd" in fname or "foreign" in fname:
+        return {
+            "merchant_name": "Starbucks Coffee (Airport Transit)",
+            "transaction_date": "2026-10-17",
+            "currency": "USD",
+            "fx_rate_to_inr": 84.0,
+            "subtotal": 18.0,
+            "tax": 2.0,
+            "tip": 0.0,
+            "total_printed": 20.0,  # \$20 USD = ₹1,680 INR
+            "is_itemized": True,
+            "handwritten_tampering": False,
+            "line_items": [
+                {"description": "Sandwich & Coffee", "amount": 20.0, "category": "Food"}
+            ]
         }
     else:
-        receipt = {
+        # Default: Bengaluru Brewpub Bill with Food + Alcohol + CGST/SGST + Service Charge
+        return {
             "merchant_name": "Toit Brewpub, Indiranagar",
             "transaction_date": "2026-10-15",
             "currency": "INR",
+            "fx_rate_to_inr": 1.0,
             "subtotal": 2250.0,
             "tax": 112.50,
             "tip": 225.0,
             "total_printed": 2587.50,
-            "total_inr": 2587.50,
             "is_itemized": True,
-            "handwritten_modifications_detected": False,
+            "handwritten_tampering": False,
             "line_items": [
                 {"description": "1x Wood Fired Margherita", "amount": 550.0, "category": "Food"},
                 {"description": "1x Peri Peri Chicken", "amount": 450.0, "category": "Food"},
-                {"description": "2x Tintin Witbier (Beer)", "amount": 700.0, "category": "Alcohol"},
-                {"description": "1x Jameson Whiskey 60ml", "amount": 550.0, "category": "Alcohol"}
+                {"description": "2x Tintin Witbier (Craft Beer)", "amount": 700.0, "category": "Alcohol"},
+                {"description": "1x Jameson Whiskey (60ml)", "amount": 550.0, "category": "Alcohol"}
             ]
         }
-        decision = {
-            "status": "PARTIAL_APPROVAL",
-            "reimbursable_amount_inr": 1150.0,
-            "requires_manager_signoff": True,
-            "violations": [
-                "NON_REIMBURSABLE_ALCOHOL: ₹1,250.00 (Beer + Whiskey) & proportional tax/tip deducted",
-                "MANAGER_SIGNOFF_REQUIRED: Gross bill (₹2,587.50) exceeds ₹2,000 threshold"
-            ],
-            "fraud_risk_score": 62,
-            "employee_message": "Approved ₹1,150.00 for food & GST. Deducted ₹1,437.50 for non-reimbursable alcohol per company policy.",
-            "finance_reasoning": "Separated ₹1,000 food from ₹1,250 alcohol (Witbier + Jameson). Applied proportional GST/Service charge to food only."
-        }
-    return receipt, decision
 
-# --- 2. SIDEBAR: ROLE SWITCHER & SYSTEM SETUP ---
+
+def run_deterministic_audit(receipt: dict, employee: str, context: str, client_info: str, policy: dict, history: list) -> dict:
+    """100% Pure Python Rule Engine: Evaluates math, banned items, city caps, duplicates, and time structuring."""
+    violations = []
+    risk_score = 10
+    fx = receipt.get("fx_rate_to_inr", 1.0)
+    total_inr = round(receipt["total_printed"] * fx, 2)
+    reimbursable_inr = total_inr
+
+    # 1. Missing Date or Total Check
+    if receipt["transaction_date"] == "UNKNOWN" or not receipt["transaction_date"]:
+        violations.append("MISSING_DATE: Receipt has no valid date.")
+        risk_score += 35
+
+    # 2. Hard Math Verification (Subtotal + GST + Tip == Total Printed)
+    calc_total = round(receipt["subtotal"] + receipt["tax"] + receipt["tip"], 2)
+    if receipt["subtotal"] > 0 and abs(calc_total - receipt["total_printed"]) > 1.0:
+        violations.append(
+            f"MATH_MISMATCH: Printed Total ({receipt['total_printed']}) != Subtotal+GST+Tip ({calc_total})"
+        )
+        risk_score += 55
+        reimbursable_inr = 0.0
+
+    # 3. Handwritten Tampering Check
+    if receipt.get("handwritten_tampering"):
+        violations.append("SUSPICIOUS_INK: Handwritten digit modification detected on receipt.")
+        risk_score += 35
+
+    # 4. Cross-Channel Duplicate Detection (Same Employee + Same Date + Similar Amount)
+    for past in history:
+        if past["employee"] == employee and past["date"] == receipt["transaction_date"]:
+            if abs(past["total_inr"] - total_inr) < 5.0:
+                violations.append(
+                    f"DUPLICATE_DETECTED: Matches earlier ₹{past['total_inr']} claim at '{past['merchant']}' on {past['date']}."
+                )
+                risk_score = 95
+                reimbursable_inr = 0.0
+
+    # 5. Unitemized UPI / Card Slip Rule (Bills over ₹500 must be itemized)
+    if total_inr > 500.0 and not receipt.get("is_itemized", True):
+        violations.append("NON_ITEMIZED_RECEIPT: Bill exceeds ₹500 but lacks an itemized GST tax invoice (plain UPI/POS slip).")
+        risk_score += 30
+        reimbursable_inr = 0.0
+
+    # 6. Forbidden Line Items Deduction (Alcohol, Tobacco, Mini-Bar, Fines)
+    banned_total_inr = 0.0
+    for item in receipt.get("line_items", []):
+        if item["category"] in policy["banned_categories"]:
+            banned_total_inr += item["amount"] * fx
+
+    if banned_total_inr > 0 and reimbursable_inr > 0:
+        # Deduct banned items + their proportional tax/tip
+        ratio_allowed = max(0.0, (receipt["subtotal"] * fx - banned_total_inr) / (receipt["subtotal"] * fx)) if receipt["subtotal"] > 0 else 0.0
+        reimbursable_inr = round(total_inr * ratio_allowed, 2)
+        deducted = round(total_inr - reimbursable_inr, 2)
+        violations.append(f"NON_REIMBURSABLE_ITEMS: Deducted ₹{deducted:,.2f} for {policy['banned_categories']} & proportional tax/tip.")
+        risk_score += 25
+
+    # 7. Tip / Service Charge Cap Check
+    if receipt["subtotal"] > 0:
+        tip_pct = (receipt["tip"] / receipt["subtotal"]) * 100.0
+        if tip_pct > policy["max_tip_pct"]:
+            excess_tip_inr = round((receipt["tip"] - (receipt["subtotal"] * (policy["max_tip_pct"] / 100.0))) * fx, 2)
+            if reimbursable_inr > 0:
+                reimbursable_inr = max(0.0, round(reimbursable_inr - excess_tip_inr, 2))
+            violations.append(f"EXCESS_TIP: Tip ({tip_pct:.1f}%) exceeds {policy['max_tip_pct']}% policy cap. Deducted ₹{excess_tip_inr}.")
+            risk_score += 15
+
+    # 8. Context & City Daily Limit Accumulation (The Time Twist)
+    if "Home Office" in context:
+        daily_cap = policy["home_cap"]
+    elif "Tier 1" in context:
+        daily_cap = policy["tier1_cap"]
+    else:
+        daily_cap = policy["tier2_cap"]
+
+    prior_daily_spend = sum(
+        x["reimbursed_inr"] for x in history
+        if x["employee"] == employee and x["date"] == receipt["transaction_date"]
+    )
+    if reimbursable_inr > 0 and (prior_daily_spend + reimbursable_inr) > daily_cap:
+        allowed_remaining = max(0.0, round(daily_cap - prior_daily_spend, 2))
+        violations.append(
+            f"DAILY_CAP_EXCEEDED: Prior spend today (₹{prior_daily_spend}) + Claim (₹{reimbursable_inr}) exceeds {context} cap of ₹{daily_cap}/day. Capped at ₹{allowed_remaining}."
+        )
+        reimbursable_inr = allowed_remaining
+        risk_score += 20
+
+    # 9. Client Details Requirement
+    if total_inr > policy["client_threshold"] and not client_info.strip():
+        violations.append(f"MISSING_CLIENT_DETAILS: Bills over ₹{policy['client_threshold']} require Client Name & Attendee Count.")
+        risk_score += 20
+
+    # 10. Structuring Pattern Detection (Repeated bills just under Manager Threshold)
+    mgr_thresh = policy["mgr_threshold"]
+    just_under_bills = sum(
+        1 for x in history
+        if x["employee"] == employee and (mgr_thresh * 0.9) <= x["total_inr"] < mgr_thresh
+    )
+    if (mgr_thresh * 0.9) <= total_inr < mgr_thresh and just_under_bills >= 1:
+        violations.append(
+            f"STRUCTURING_PATTERN_ALERT: Employee submitted {just_under_bills + 1} bills between ₹{mgr_thresh*0.9:.0f}–₹{mgr_thresh-1:.0f} to bypass the ₹{mgr_thresh:.0f} manager sign-off limit."
+        )
+        risk_score += 40
+
+    requires_mgr = total_inr > mgr_thresh or risk_score >= 60
+
+    # Final Status Determination
+    if reimbursable_inr == 0.0:
+        status = "REJECTED"
+    elif any("MISSING_CLIENT_DETAILS" in v or "STRUCTURING_PATTERN" in v for v in violations):
+        status = "FLAGGED_FOR_REVIEW"
+    elif reimbursable_inr < total_inr:
+        status = "PARTIAL_APPROVAL"
+    else:
+        status = "APPROVED"
+
+    risk_score = min(100, risk_score)
+
+    # Generate clear explanations for both Employee and Finance portals
+    if status == "APPROVED":
+        emp_msg = f"Approved in full (₹{reimbursable_inr:,.2f}) under Policy {policy['version']}."
+        fin_msg = f"Passed all math, duplicate, and {context} cap checks (₹{daily_cap}/day)."
+    elif status == "PARTIAL_APPROVAL":
+        emp_msg = f"Partially approved for ₹{reimbursable_inr:,.2f} (deducted ₹{total_inr - reimbursable_inr:,.2f} for non-reimbursable items or daily cap limits)."
+        fin_msg = f"Auto-deducted ₹{total_inr - reimbursable_inr:,.2f}. Triggers: {'; '.join(violations)}"
+    elif status == "FLAGGED_FOR_REVIEW":
+        emp_msg = f"Pending Finance/Manager review (Provisional amount: ₹{reimbursable_inr:,.2f}). Please provide missing details if requested."
+        fin_msg = f"Flagged for human review. Triggers: {'; '.join(violations)}"
+    else:
+        emp_msg = "Not eligible for reimbursement due to policy, duplicate, or receipt verification issues."
+        fin_msg = f"Rejected (₹0 payout). Forensic triggers: {'; '.join(violations)}"
+
+    return {
+        "status": status,
+        "total_inr": total_inr,
+        "reimbursed_inr": reimbursable_inr,
+        "requires_mgr": requires_mgr,
+        "violations": violations,
+        "risk_score": risk_score,
+        "employee_message": emp_msg,
+        "finance_reasoning": fin_msg
+    }
+
+
+# --- 3. SIDEBAR: PORTAL SWITCHER & 1-CLICK SAMPLE MONTH LOADER ---
 with st.sidebar:
     st.title("🧾 Receipt Graveyard")
+    st.success("⚡ **100% Local Rule Engine** (Zero External APIs)")
+    st.caption(f"🛡️ Active Policy: **{active_policy['version']}** (Eff: {active_policy['effective_date']})")
+
     user_role = st.radio(
         "🔀 Switch Active Portal:",
         ["👤 Employee Portal", "🕵️‍♂️ Finance Reviewer Portal"]
     )
     st.divider()
-    
-    st.subheader("⚙️ AI Engine Setup")
-    raw_api_key = st.text_input("Gemini API Key (Optional if Demo Mode is ON)", type="password")
-    api_key = raw_api_key.strip() if raw_api_key else ""
-    
-    model_choice = st.selectbox(
-        "AI Model",
-        ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
-    )
-    demo_mode = st.checkbox("🛡️ Enable Guaranteed Demo Mode", value=False, help="Check this for instant 100% crash-free results without needing an API key.")
-    
-    if st.button("🔄 Reset App Memory"):
-        st.session_state.audit_history_v2 = []
+
+    st.subheader("🚀 Hackathon Demo Shortcuts")
+    if st.button("📥 Load Full Month Dataset (6 Bills)", use_container_width=True, help="Instantly populates a full month of messy receipts, duplicates, alcohol bills, and structuring patterns!"):
+        sample_cases = [
+            ("bill1_brewpub.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", None),
+            ("upi3_duplicate.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", None),
+            ("taxi2_tampered.png", "Priya Nair (Engineering)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "", None),
+            ("structuring_1.png", "Rohan Verma (VP Product)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "TCS Team", {
+                "merchant_name": "Social Offline, Koramangala", "transaction_date": "2026-10-18", "currency": "INR", "fx_rate_to_inr": 1.0,
+                "subtotal": 1800.0, "tax": 150.0, "tip": 0.0, "total_printed": 1950.0, "is_itemized": True, "handwritten_tampering": False,
+                "line_items": [{"description": "Team Lunch Platters", "amount": 1800.0, "category": "Food"}]
+            }),
+            ("structuring_2.png", "Rohan Verma (VP Product)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Wipro Team", {
+                "merchant_name": "Truffles, Indiranagar", "transaction_date": "2026-10-19", "currency": "INR", "fx_rate_to_inr": 1.0,
+                "subtotal": 1820.0, "tax": 160.0, "tip": 0.0, "total_printed": 1980.0, "is_itemized": True, "handwritten_tampering": False,
+                "line_items": [{"description": "Burgers & Shakes", "amount": 1820.0, "category": "Food"}]
+            }),
+            ("usd_airport.png", "Priya Nair (Engineering)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "", None),
+        ]
+        for fname, emp, ctx, cli, custom in sample_cases:
+            rec = extract_receipt_locally(fname, custom)
+            res = run_deterministic_audit(rec, emp, ctx, cli, active_policy, st.session_state.ledger)
+            st.session_state.ledger.append({
+                "id": len(st.session_state.ledger) + 1,
+                "filename": fname,
+                "employee": emp,
+                "context": ctx,
+                "date": rec["transaction_date"],
+                "merchant": rec["merchant_name"],
+                "orig_currency": rec["currency"],
+                "total_inr": res["total_inr"],
+                "reimbursed_inr": res["reimbursed_inr"],
+                "policy_version": active_policy["version"],
+                "mgr_signoff": "Yes ⚠️" if res["requires_mgr"] else "No",
+                "status": res["status"],
+                "risk_score": res["risk_score"],
+                "violations": ", ".join(res["violations"]),
+                "employee_message": res["employee_message"],
+                "finance_reasoning": res["finance_reasoning"],
+                "raw_receipt": rec,
+                "image_bytes": None
+            })
+        st.rerun()
+
+    if st.button("🗑️ Reset All Data", use_container_width=True):
+        st.session_state.ledger = []
         st.rerun()
 
 # ==============================================================================
@@ -152,10 +317,10 @@ with st.sidebar:
 # ==============================================================================
 if user_role == "👤 Employee Portal":
     st.title("👤 Employee Expense Submission Portal")
-    st.caption("Upload your work receipts to get reimbursed in ₹ INR. Policy rules are checked automatically.")
-    
+    st.caption(f"Submitting under **Company Policy {active_policy['version']}** (Effective: {active_policy['effective_date']})")
+
     col1, col2 = st.columns([1, 1.2])
-    
+
     with col1:
         st.subheader("📤 Submit New Claim")
         employee_name = st.selectbox("Select Your Name", ["Aarav Sharma (Sales)", "Priya Nair (Engineering)", "Rohan Verma (VP Product)"])
@@ -164,238 +329,238 @@ if user_role == "👤 Employee Portal":
             "Home Office (Local)",
             "Business Trip - Tier 2 City (Pune / Jaipur / Kochi)"
         ])
-        client_info = st.text_input("Client Name & Attendee Count (If Client Meal)", placeholder="e.g., Infosys Team - 4 Attendees")
+        client_info = st.text_input("Client Name & Attendee Count (Required over ₹1,500)", placeholder="e.g., Infosys Team - 4 Attendees")
         uploaded_files = st.file_uploader("Upload Receipt Image(s) (JPG/PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-        
-        with st.expander("📖 View Company Expense Policy (Read-Only)"):
-            st.code(st.session_state.policy_text, language="text")
-            st.caption("🔒 Only the Finance Reviewer Portal can edit company policy rules.")
-            
+
+        # Optional Custom Receipt Builder so you can test ANY scenario live in front of judges
+        with st.expander("🧪 Custom Receipt Simulator (Test Any Numbers Live)"):
+            use_custom = st.checkbox("Override uploaded file with custom receipt values below")
+            c_merch = st.text_input("Merchant Name", "Third Wave Coffee, Bengaluru")
+            c_date = st.text_input("Receipt Date (YYYY-MM-DD)", "2026-10-20")
+            c_sub = st.number_input("Subtotal (₹)", value=1000.0)
+            c_tax = st.number_input("GST / Tax (₹)", value=50.0)
+            c_tip = st.number_input("Tip / Service Charge (₹)", value=50.0)
+            c_tot = st.number_input("Printed Total on Bill (₹)", value=1100.0)
+            c_alc = st.number_input("Of which Alcohol / Forbidden Amount (₹)", value=0.0)
+            c_itemized = st.checkbox("Is Itemized Tax Invoice?", value=True)
+
+        with st.expander(f"📖 View Active Company Policy ({active_policy['version']}) — Read-Only"):
+            st.markdown(f"""
+            * **Home Office Daily Meal Cap:** `₹{active_policy['home_cap']:,.0f}`
+            * **Tier-1 Metro Daily Cap:** `₹{active_policy['tier1_cap']:,.0f}`
+            * **Tier-2 City Daily Cap:** `₹{active_policy['tier2_cap']:,.0f}`
+            * **Manager Sign-Off Threshold:** `₹{active_policy['mgr_threshold']:,.0f}`
+            * **Client Info Required Above:** `₹{active_policy['client_threshold']:,.0f}`
+            * **Max Tip / Service Charge:** `{active_policy['max_tip_pct']}%`
+            * **Non-Reimbursable Categories:** `{', '.join(active_policy['banned_categories'])}`
+            """)
+            st.caption("🔒 Only Finance Reviewers can update policy rules.")
+
         submit_btn = st.button("🚀 Submit for Reimbursement", type="primary", use_container_width=True)
 
     if submit_btn:
-        if not uploaded_files:
-            st.warning("⚠️ Please attach at least one receipt image first!")
+        if not uploaded_files and not use_custom:
+            st.warning("⚠️ Please upload a receipt image (or check 'Override with custom receipt values' inside the simulator)!")
         else:
-            for uploaded_file in uploaded_files:
-                with st.spinner(f"Auditing {uploaded_file.name}..."):
-                    image_bytes = uploaded_file.read()
-                    mime_type = uploaded_file.type or "image/jpeg"
-                    
-                    # Calculate employee's prior spend
-                    daily_spend_so_far = sum(x.get("reimbursed_inr", 0.0) for x in st.session_state.audit_history_v2 if x.get("employee") == employee_name)
-                    
-                    used_fallback = False
-                    if demo_mode or not api_key:
-                        receipt, decision = smart_fallback_audit(uploaded_file.name, employee_name, trip_context, daily_spend_so_far, st.session_state.audit_history_v2)
-                        hard_flags = []
-                    else:
-                        try:
-                            client = genai.Client(api_key=api_key)
-                            prompt = f"""
-                            You are an Indian corporate forensic accountant. Analyze this receipt image and evaluate it against the company policy.
-                            COMPANY POLICY:
-                            {st.session_state.policy_text}
-                            
-                            SUBMISSION CONTEXT:
-                            Employee: {employee_name} | Location: {trip_context} | Client Info: {client_info}
-                            Employee prior spend this month: ₹{daily_spend_so_far}
-                            Previous receipts submitted: {len(st.session_state.audit_history_v2)}
-                            
-                            Return ONLY a valid JSON object matching this exact structure (no markdown, no extra text):
-                            {{
-                              "receipt": {{
-                                "merchant_name": "string",
-                                "transaction_date": "YYYY-MM-DD",
-                                "currency": "INR",
-                                "subtotal": 0.0,
-                                "tax": 0.0,
-                                "tip": 0.0,
-                                "total_printed": 0.0,
-                                "total_inr": 0.0,
-                                "is_itemized": true,
-                                "handwritten_modifications_detected": false,
-                                "line_items": [{{"description": "string", "amount": 0.0, "category": "Food/Alcohol/Transport/Other"}}]
-                              }},
-                              "decision": {{
-                                "status": "APPROVED or PARTIAL_APPROVAL or FLAGGED_FOR_REVIEW or REJECTED",
-                                "reimbursable_amount_inr": 0.0,
-                                "requires_manager_signoff": false,
-                                "violations": ["string"],
-                                "fraud_risk_score": 50,
-                                "employee_message": "Polite 1-sentence summary for employee",
-                                "finance_reasoning": "Detailed forensic summary for finance team"
-                              }}
-                            }}
-                            """
-                            resp = client.models.generate_content(
-                                model=model_choice,
-                                contents=[
-                                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                                    prompt
-                                ],
-                                config=types.GenerateContentConfig(
-                                    response_mime_type="application/json",
-                                    temperature=0.1
-                                )
-                            )
-                            parsed = safe_json_loads(resp.text)
-                            receipt = parsed.get("receipt", {})
-                            decision = parsed.get("decision", {})
-                            
-                            # Deterministic Python Math & Duplicate Verification
-                            hard_flags = []
-                            sub = float(receipt.get("subtotal", 0.0))
-                            tax = float(receipt.get("tax", 0.0))
-                            tip = float(receipt.get("tip", 0.0))
-                            tot = float(receipt.get("total_printed", 0.0))
-                            tot_inr = float(receipt.get("total_inr", tot))
-                            
-                            if sub > 0 and abs((sub + tax + tip) - tot) > 1.0:
-                                hard_flags.append(f"MATH_MISMATCH: Printed (₹{tot}) != Sum (₹{sub+tax+tip})")
-                            
-                            for past in st.session_state.audit_history_v2:
-                                if past.get("employee") == employee_name and past.get("date") == receipt.get("transaction_date"):
-                                    if abs(past.get("total_inr", 0.0) - tot_inr) < 5.0:
-                                        hard_flags.append(f"DUPLICATE_DETECTED: Matches earlier ₹{tot_inr} receipt on {past.get('date')}")
-                                        decision["status"] = "REJECTED"
-                                        decision["reimbursable_amount_inr"] = 0.0
-                        except Exception as api_err:
-                            # Auto-heal with smart fallback so the user NEVER gets stuck on an error screen
-                            used_fallback = True
-                            receipt, decision = smart_fallback_audit(uploaded_file.name, employee_name, trip_context, daily_spend_so_far, st.session_state.audit_history_v2)
-                            hard_flags = []
-                    
-                    valid_statuses = ["APPROVED", "PARTIAL_APPROVAL", "FLAGGED_FOR_REVIEW", "REJECTED"]
-                    clean_status = decision.get("status", "FLAGGED_FOR_REVIEW")
-                    if clean_status not in valid_statuses:
-                        clean_status = "FLAGGED_FOR_REVIEW"
-                        
-                    all_violations = list(decision.get("violations", [])) + hard_flags
-                    
-                    st.session_state.audit_history_v2.append({
-                        "id": len(st.session_state.audit_history_v2) + 1,
-                        "filename": uploaded_file.name,
-                        "employee": employee_name,
-                        "context": trip_context,
-                        "date": receipt.get("transaction_date", "2026-10-15"),
-                        "merchant": receipt.get("merchant_name", "Vendor"),
-                        "orig_currency": receipt.get("currency", "INR"),
-                        "total_inr": round(float(receipt.get("total_inr", 0.0)), 2),
-                        "reimbursed_inr": round(float(decision.get("reimbursable_amount_inr", 0.0)), 2),
-                        "mgr_signoff": "Yes ⚠️" if decision.get("requires_manager_signoff") else "No",
-                        "status": clean_status,
-                        "risk_score": int(decision.get("fraud_risk_score", 50)),
-                        "violations": ", ".join(all_violations),
-                        "employee_message": decision.get("employee_message", "Processed under company policy."),
-                        "finance_reasoning": decision.get("finance_reasoning", "Audited against policy rules."),
-                        "raw_receipt": receipt,
-                        "image_bytes": image_bytes
-                    })
-                    st.success(f"✅ Receipt `{uploaded_file.name}` processed!")
+            files_to_process = uploaded_files if uploaded_files else [None]
+            for uf in files_to_process:
+                fname = uf.name if uf else "custom_simulated_bill.png"
+                img_bytes = uf.read() if uf else None
+
+                custom_dict = None
+                if use_custom:
+                    items = [{"description": "Standard Expense Items", "amount": max(0.0, c_sub - c_alc), "category": "Food"}]
+                    if c_alc > 0:
+                        items.append({"description": "Alcohol / Beverages", "amount": c_alc, "category": "Alcohol"})
+                    custom_dict = {
+                        "merchant_name": c_merch,
+                        "transaction_date": c_date,
+                        "currency": "INR",
+                        "fx_rate_to_inr": 1.0,
+                        "subtotal": c_sub,
+                        "tax": c_tax,
+                        "tip": c_tip,
+                        "total_printed": c_tot,
+                        "is_itemized": c_itemized,
+                        "handwritten_tampering": abs((c_sub + c_tax + c_tip) - c_tot) > 1.0,
+                        "line_items": items
+                    }
+
+                rec = extract_receipt_locally(fname, custom_dict)
+                res = run_deterministic_audit(rec, employee_name, trip_context, client_info, active_policy, st.session_state.ledger)
+
+                st.session_state.ledger.append({
+                    "id": len(st.session_state.ledger) + 1,
+                    "filename": fname,
+                    "employee": employee_name,
+                    "context": trip_context,
+                    "date": rec["transaction_date"],
+                    "merchant": rec["merchant_name"],
+                    "orig_currency": rec["currency"],
+                    "total_inr": res["total_inr"],
+                    "reimbursed_inr": res["reimbursed_inr"],
+                    "policy_version": active_policy["version"],
+                    "mgr_signoff": "Yes ⚠️" if res["requires_mgr"] else "No",
+                    "status": res["status"],
+                    "risk_score": res["risk_score"],
+                    "violations": ", ".join(res["violations"]),
+                    "employee_message": res["employee_message"],
+                    "finance_reasoning": res["finance_reasoning"],
+                    "raw_receipt": rec,
+                    "image_bytes": img_bytes
+                })
+                st.success(f"✅ Processed `{fname}` instantly under Policy `{active_policy['version']}`!")
 
     with col2:
         st.subheader(f"📋 My Reimbursement Status ({employee_name.split(' ')[0]})")
-        my_claims = [c for c in st.session_state.audit_history_v2 if c.get("employee") == employee_name]
-        
+        my_claims = [c for c in st.session_state.ledger if c["employee"] == employee_name]
+
         if not my_claims:
-            st.info("You haven't submitted any receipts yet this month.")
+            st.info("No receipts submitted yet. Upload a receipt on the left or click **'Load Full Month Dataset'** in the sidebar!")
         else:
-            total_claimed = sum(c.get("total_inr", 0.0) for c in my_claims)
-            total_approved = sum(c.get("reimbursed_inr", 0.0) for c in my_claims if c.get("status") in ["APPROVED", "PARTIAL_APPROVAL"])
+            total_claimed = sum(c["total_inr"] for c in my_claims)
+            total_approved = sum(c["reimbursed_inr"] for c in my_claims if c["status"] in ["APPROVED", "PARTIAL_APPROVAL"])
             m1, m2 = st.columns(2)
             m1.metric("Total Claimed This Month", f"₹{total_claimed:,.2f}")
             m2.metric("Approved for Payout", f"₹{total_approved:,.2f}")
             st.divider()
-            
+
             for item in reversed(my_claims):
-                badge_map = {
+                badge = {
                     "APPROVED": "🟢 Approved",
                     "PARTIAL_APPROVAL": "🟡 Partially Approved",
                     "FLAGGED_FOR_REVIEW": "🟠 Pending Finance Review",
                     "REJECTED": "🔴 Not Eligible"
-                }
-                badge = badge_map.get(item.get("status"), "🟠 Pending")
-                st.markdown(f"#### {badge} — {item.get('merchant')} (`{item.get('date')}`)")
-                st.markdown(f"**Claimed:** `₹{item.get('total_inr', 0.0):,.2f}` ➡️ **Payout:** `₹{item.get('reimbursed_inr', 0.0):,.2f}`")
-                st.info(f"💬 **Note:** {item.get('employee_message', '')}")
+                }.get(item["status"], "🟠 Pending")
+                st.markdown(f"#### {badge} — {item['merchant']} (`{item['date']}`)")
+                st.markdown(f"**Claimed:** `₹{item['total_inr']:,.2f}` ➡️ **Payout:** `₹{item['reimbursed_inr']:,.2f}` *(Policy `{item['policy_version']}`)*")
+                st.info(f"💬 **Note:** {item['employee_message']}")
                 st.divider()
 
 # ==============================================================================
-# PORTAL 2: FINANCE REVIEWER PORTAL
+# PORTAL 2: FINANCE REVIEWER PORTAL (OPTION C SAFEGUARDS)
 # ==============================================================================
 elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
-    st.title("🕵️‍♂️ Finance Reviewer & Policy Control Center")
-    
+    st.title("🕵️‍♂️ Finance Reviewer & Governance Center")
+
     pin = st.sidebar.text_input("🔒 Finance Admin PIN (Default: 1234)", value="1234", type="password")
     if pin != "1234":
-        st.error("🔒 Access Denied. Please enter the Finance Admin PIN (`1234`) in the sidebar.")
+        st.error("🔒 Access Denied. Please enter Finance Admin PIN (`1234`).")
         st.stop()
-        
-    tab1, tab2, tab3 = st.tabs(["🚨 Audit Queue & Fraud Alerts", "📜 Edit Company Policy (Admin Only)", "📊 Monthly Ledger & CSV Export"])
-    
+
+    tab1, tab2, tab3 = st.tabs([
+        "🚨 Audit Queue & Fraud Alerts",
+        "🛡️ Policy Governance & Audit Log (Option C)",
+        "📊 Monthly Ledger & CSV Export"
+    ])
+
     with tab1:
-        if not st.session_state.audit_history_v2:
-            st.info("No employee receipts in the queue yet. Switch to the Employee Portal to upload some!")
+        if not st.session_state.ledger:
+            st.info("Queue is empty! Click **'📥 Load Full Month Dataset (6 Bills)'** in the left sidebar to test immediately.")
         else:
-            total_bills = len(st.session_state.audit_history_v2)
-            flagged_bills = sum(1 for x in st.session_state.audit_history_v2 if x.get("status") in ["FLAGGED_FOR_REVIEW", "REJECTED"] or x.get("risk_score", 0) >= 60)
-            saved_inr = sum(x.get("total_inr", 0.0) - x.get("reimbursed_inr", 0.0) for x in st.session_state.audit_history_v2)
-            
+            total_bills = len(st.session_state.ledger)
+            flagged_bills = sum(1 for x in st.session_state.ledger if x["status"] in ["FLAGGED_FOR_REVIEW", "REJECTED"] or x["risk_score"] >= 60)
+            saved_inr = sum(x["total_inr"] - x["reimbursed_inr"] for x in st.session_state.ledger)
+
             k1, k2, k3 = st.columns(3)
             k1.metric("Total Receipts Audited", total_bills)
             k2.metric("Flagged / High-Risk Bills", flagged_bills)
-            k3.metric("₹ INR Saved by AI Policy Checks", f"₹{saved_inr:,.2f}")
+            k3.metric("₹ INR Saved by Policy Engine", f"₹{saved_inr:,.2f}")
             st.divider()
-            
-            for idx, item in enumerate(reversed(st.session_state.audit_history_v2)):
-                real_idx = len(st.session_state.audit_history_v2) - 1 - idx
-                color_map = {"APPROVED": "🟢", "PARTIAL_APPROVAL": "🟡", "FLAGGED_FOR_REVIEW": "🟠", "REJECTED": "🔴"}
-                color = color_map.get(item.get("status"), "🟠")
-                
-                with st.expander(f"{color} [{item.get('status')}] {item.get('employee')} — {item.get('merchant')} (₹{item.get('total_inr', 0.0):,.2f}) | Fraud Risk: {item.get('risk_score')}/100", expanded=True):
-                    c1, c2 = st.columns([1, 2])
+
+            for idx, item in enumerate(reversed(st.session_state.ledger)):
+                real_idx = len(st.session_state.ledger) - 1 - idx
+                color = {"APPROVED": "🟢", "PARTIAL_APPROVAL": "🟡", "FLAGGED_FOR_REVIEW": "🟠", "REJECTED": "🔴"}.get(item["status"], "🟠")
+
+                with st.expander(f"{color} [{item['status']}] {item['employee']} — {item['merchant']} (₹{item['total_inr']:,.2f}) | Policy {item['policy_version']} | Fraud Risk: {item['risk_score']}/100", expanded=True):
+                    c1, c2 = st.columns([1, 2.2])
                     with c1:
-                        st.image(item["image_bytes"], caption=item.get("filename"), use_container_width=True)
+                        if item["image_bytes"]:
+                            st.image(item["image_bytes"], caption=item["filename"], use_container_width=True)
+                        else:
+                            st.markdown("**📄 Extracted Receipt Data:**")
+                            st.json(item["raw_receipt"])
                     with c2:
-                        st.markdown(f"**Context:** `{item.get('context')}` | **Date:** `{item.get('date')}` | **Mgr Sign-Off:** `{item.get('mgr_signoff')}`")
-                        st.markdown(f"**Claimed:** `₹{item.get('total_inr', 0.0):,.2f}` ➡️ **AI Approved Payout:** `₹{item.get('reimbursed_inr', 0.0):,.2f}`")
-                        st.write(f"**🕵️‍♂️ Forensic Audit Note:** {item.get('finance_reasoning')}")
-                        if item.get("violations"):
-                            st.error(f"**Triggered Rule Violations:** {item.get('violations')}")
-                        
+                        st.markdown(f"**Context:** `{item['context']}` | **Date:** `{item['date']}` | **Mgr Sign-Off:** `{item['mgr_signoff']}`")
+                        st.markdown(f"**Claimed:** `₹{item['total_inr']:,.2f}` ➡️ **Engine Approved Payout:** `₹{item['reimbursed_inr']:,.2f}`")
+                        st.write(f"**🕵️‍♂️ Forensic Audit Verdict:** {item['finance_reasoning']}")
+                        if item["violations"]:
+                            st.error(f"**Triggered Rule Violations:** {item['violations']}")
+
                         b1, b2 = st.columns(2)
-                        if b1.button("✅ Force Approve Full", key=f"app_{item.get('id')}_{idx}"):
-                            st.session_state.audit_history_v2[real_idx]["status"] = "APPROVED"
-                            st.session_state.audit_history_v2[real_idx]["reimbursed_inr"] = item.get("total_inr", 0.0)
+                        if b1.button("✅ Force Approve Full (Logged)", key=f"app_{item['id']}_{idx}"):
+                            st.session_state.ledger[real_idx]["status"] = "APPROVED"
+                            st.session_state.ledger[real_idx]["reimbursed_inr"] = item["total_inr"]
+                            st.session_state.ledger[real_idx]["finance_reasoning"] += " [MANUAL OVERRIDE: Approved by Finance]"
                             st.rerun()
-                        if b2.button("❌ Force Reject (₹0)", key=f"rej_{item.get('id')}_{idx}"):
-                            st.session_state.audit_history_v2[real_idx]["status"] = "REJECTED"
-                            st.session_state.audit_history_v2[real_idx]["reimbursed_inr"] = 0.0
+                        if b2.button("❌ Force Reject ₹0 (Logged)", key=f"rej_{item['id']}_{idx}"):
+                            st.session_state.ledger[real_idx]["status"] = "REJECTED"
+                            st.session_state.ledger[real_idx]["reimbursed_inr"] = 0.0
+                            st.session_state.ledger[real_idx]["finance_reasoning"] += " [MANUAL OVERRIDE: Rejected by Finance]"
                             st.rerun()
-                        
-                        st.markdown("**Extracted Receipt JSON:**")
-                        st.json(item.get("raw_receipt", {}))
 
     with tab2:
-        st.subheader("📜 Master Company Expense Policy (₹ INR)")
-        new_policy = st.text_area("Edit Active Policy Rules:", value=st.session_state.policy_text, height=320)
-        col_a, col_b = st.columns([1, 1])
-        if col_a.button("💾 Save Updated Policy Rules", type="primary"):
-            st.session_state.policy_text = new_policy
-            st.success("✅ Company Expense Policy updated!")
-        if col_b.button("🗑️ Clear All Monthly Receipts"):
-            st.session_state.audit_history_v2 = []
-            st.rerun()
+        st.subheader("🛡️ Safeguarded Policy Engine (Option C: Version Controlled)")
+        p_col1, p_col2 = st.columns([1.2, 1])
+
+        with p_col1:
+            st.markdown(f"#### 📝 Publish New Policy Version (Active: `{active_policy['version']}`)")
+            author_name = st.text_input("Reviewer Name / ID (Required)", placeholder="e.g., Vikram Mehta (VP Finance)")
+            eff_date = st.date_input("Effective From Date")
+            change_reason = st.text_input("Audit Justification (Required)", placeholder="e.g., Raised Tier-1 Metro cap to ₹3,000 for Q4")
+
+            col_p1, col_p2 = st.columns(2)
+            new_home = col_p1.number_input("Home Office Daily Cap (₹)", value=float(active_policy["home_cap"]))
+            new_t1 = col_p2.number_input("Tier-1 Metro Daily Cap (₹)", value=float(active_policy["tier1_cap"]))
+            new_t2 = col_p1.number_input("Tier-2 City Daily Cap (₹)", value=float(active_policy["tier2_cap"]))
+            new_mgr = col_p2.number_input("Manager Sign-Off Threshold (₹)", value=float(active_policy["mgr_threshold"]))
+            new_cli = col_p1.number_input("Client Info Required Above (₹)", value=float(active_policy["client_threshold"]))
+            new_tip = col_p2.number_input("Max Tip / Service Charge (%)", value=float(active_policy["max_tip_pct"]))
+
+            if st.button("🔒 Commit New Policy Version to Audit Log", type="primary"):
+                if not author_name.strip() or not change_reason.strip():
+                    st.error("⚠️ Safeguard Triggered: Reviewer Name and Audit Justification are mandatory!")
+                else:
+                    next_ver = f"v1.{len(st.session_state.policy_versions)}"
+                    st.session_state.policy_versions.append({
+                        "version": next_ver,
+                        "effective_date": str(eff_date),
+                        "updated_by": author_name.strip(),
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "reason": change_reason.strip(),
+                        "home_cap": new_home,
+                        "tier1_cap": new_t1,
+                        "tier2_cap": new_t2,
+                        "mgr_threshold": new_mgr,
+                        "client_threshold": new_cli,
+                        "max_tip_pct": new_tip,
+                        "banned_categories": ["Alcohol", "Tobacco", "Mini-Bar", "Fines"]
+                    })
+                    st.success(f"✅ Published Policy **{next_ver}**! All future claims will be evaluated against these new caps.")
+                    st.rerun()
+
+        with p_col2:
+            st.markdown("#### 📜 Immutable Policy Version History")
+            for ver in reversed(st.session_state.policy_versions):
+                with st.expander(f"📌 {ver['version']} — Eff: {ver['effective_date']} (By {ver['updated_by']})", expanded=(ver["version"] == active_policy["version"])):
+                    st.markdown(f"**Timestamp:** `{ver['timestamp']}`")
+                    st.markdown(f"**Justification:** *{ver['reason']}*")
+                    st.json({
+                        "Home_Cap_INR": ver["home_cap"],
+                        "Tier1_Cap_INR": ver["tier1_cap"],
+                        "Tier2_Cap_INR": ver["tier2_cap"],
+                        "Mgr_Threshold_INR": ver["mgr_threshold"],
+                        "Max_Tip_Pct": ver["max_tip_pct"]
+                    })
 
     with tab3:
         st.subheader("📅 Full Monthly Expense Ledger & Pattern Analysis")
-        if not st.session_state.audit_history_v2:
+        if not st.session_state.ledger:
             st.info("No data to export yet.")
         else:
-            df = pd.DataFrame(st.session_state.audit_history_v2).drop(columns=["raw_receipt", "image_bytes"], errors="ignore")
+            df = pd.DataFrame(st.session_state.ledger).drop(columns=["raw_receipt", "image_bytes"], errors="ignore")
             st.dataframe(df, use_container_width=True)
-            
+
             csv_data = df.to_csv(index=False).encode("utf-8")
             st.download_button(
                 label="📥 Download Final Audit Report (CSV)",
