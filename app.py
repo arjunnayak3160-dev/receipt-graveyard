@@ -30,20 +30,36 @@ def load_lottie_url(url: str):
 lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
 lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
 
-# --- PAGE SETUP & APPLE TRANSLUCENT CSS THEME ---
+# --- PAGE SETUP & FUTURA APPLE TRANSLUCENT CSS THEME ---
 st.set_page_config(page_title="The Receipt Graveyard", page_icon="🧾", layout="wide")
 
 st.markdown("""
 <style>
-    /* Apple Dark / Translucent Theme Styling */
+    /* Global Futura Font & Dark Glass Theme */
     .stApp {
         background-color: #0b0f19;
         background-image: radial-gradient(circle at 15% 15%, rgba(41, 55, 95, 0.4) 0%, transparent 40%),
                           radial-gradient(circle at 85% 85%, rgba(67, 39, 94, 0.3) 0%, transparent 40%);
         color: #f3f4f6;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
     }
     
+    h1, h2, h3, h4, h5, h6 {
+        font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.02em !important;
+        color: #ffffff !important;
+    }
+    
+    h1 { font-size: 2.8rem !important; }
+    h2 { font-size: 2.2rem !important; }
+    h3 { font-size: 1.6rem !important; }
+    h4 { font-size: 1.25rem !important; }
+
+    p, span, label, div {
+        font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
+    }
+
     /* Frosted Glass Containers (Apple Glassmorphism) */
     div.stExpander, div[data-testid="stVerticalBlock"] > div.element-container, .css-1r6slb0 {
         background: rgba(255, 255, 255, 0.03);
@@ -51,7 +67,7 @@ st.markdown("""
         -webkit-backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
-        padding: 1rem;
+        padding: 1.2rem;
         margin-bottom: 1rem;
     }
 
@@ -60,48 +76,54 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.04);
         backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.08);
-        padding: 16px;
+        padding: 18px;
         border-radius: 14px;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     }
     div[data-testid="stMetricLabel"] {
         color: #9ca3af !important;
-        font-size: 0.85rem !important;
+        font-size: 0.9rem !important;
+        font-weight: 700 !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #f9fafb !important;
-        font-weight: 600 !important;
+        color: #ffffff !important;
+        font-weight: 900 !important;
+        font-size: 1.8rem !important;
     }
 
     /* Sidebar Glassmorphism */
     section[data-testid="stSidebar"] {
-        background-color: rgba(11, 15, 25, 0.85);
+        background-color: rgba(11, 15, 25, 0.9);
         backdrop-filter: blur(25px);
         border-right: 1px solid rgba(255, 255, 255, 0.06);
     }
 
-    /* Buttons */
+    /* Primary Action Buttons */
     .stButton > button {
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(37, 99, 235, 1));
         color: white;
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 10px;
-        font-weight: 500;
+        font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.03em;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, rgba(37, 99, 235, 0.9), rgba(29, 78, 216, 1));
-        border-color: rgba(255, 255, 255, 0.3);
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+        background: linear-gradient(135deg, rgba(37, 99, 235, 1), rgba(29, 78, 216, 1));
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
     }
 
     /* Inputs & Selectboxes */
     input, select, textarea {
         background-color: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        color: #ffffff !important;
+        font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         border-radius: 10px !important;
+        font-weight: 600 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -118,6 +140,7 @@ if "policy_versions" not in st.session_state:
             "updated_by": "System Default (CFO Office)",
             "timestamp": "2026-10-01 09:00:00",
             "reason": "Initial Q4 Corporate Expense Policy release",
+            "document_text": "Standard Baseline Policy v1.0 loaded with default parameters.",
             "filing_window_days": 30,
             "big_ticket_threshold": 15000.0,
             "home_cap": 500.0,
@@ -213,11 +236,52 @@ def parse_receipt_from_image_bytes(image_bytes: bytes, filename: str, custom_ove
     }
 
 
-def run_deterministic_audit(receipt: dict, employee: str, context: str, client_info: str, policy: dict, history: list) -> dict:
+def parse_policy_document_text(doc_text: str, current_policy: dict) -> dict:
+    """Extracts thresholds dynamically using regex parsing from an unstructured policy document."""
+    new_pol = dict(current_policy)
+    new_pol["document_text"] = doc_text
+
+    # Extract Filing Window (e.g., "within 45 days" or "45-day window")
+    match_window = re.search(r"(\d+)\s*(?:days|day)\s*(?:filing|window|submission|limit)?", doc_text, re.IGNORECASE)
+    if match_window:
+        new_pol["filing_window_days"] = int(match_window.group(1))
+
+    # Extract Big Ticket Threshold (e.g., "Rs 20,000", "INR 15000", "₹10,000")
+    match_big = re.search(r"(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d+)?)\s*(?:big-ticket|threshold|gst)?", doc_text, re.IGNORECASE)
+    if match_big:
+        try:
+            val = float(match_big.group(1).replace(",", ""))
+            if val > 1000:
+                new_pol["big_ticket_threshold"] = val
+        except ValueError:
+            pass
+
+    # Extract Tier-1 Metro Cap
+    match_t1 = re.search(r"tier[- ]?1.*?([\d,]+(?:\.\d+)?)", doc_text, re.IGNORECASE)
+    if match_t1:
+        try:
+            val = float(match_t1.group(1).replace(",", ""))
+            new_pol["tier1_cap"] = val
+        except ValueError:
+            pass
+
+    # Extract Meal Card limit
+    match_meal = re.search(r"meal\s*card.*?([\d,]+(?:\.\d+)?)", doc_text, re.IGNORECASE)
+    if match_meal:
+        try:
+            val = float(match_meal.group(1).replace(",", ""))
+            new_pol["meal_card_limit"] = val
+        except ValueError:
+            pass
+
+    return new_pol
+
+
+def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str, client_info: str, policy: dict, history: list) -> dict:
     violations = []
     risk_score = 10
-    fx = receipt.get("fx_rate_to_inr", 1.0)
-    total_inr = round(receipt["total_printed"] * fx, 2)
+    employee_name = employee_profile.get("name", "Unknown Employee")
+    total_inr = round(receipt["total_printed"], 2)
     reimbursable_inr = total_inr
 
     if total_inr <= 0:
@@ -235,16 +299,16 @@ def run_deterministic_audit(receipt: dict, employee: str, context: str, client_i
         reimbursable_inr = 0.0
 
     for past in history:
-        if past["employee"] == employee and past["date"] == receipt["transaction_date"]:
+        if past["employee"] == employee_name and past["date"] == receipt["transaction_date"]:
             if abs(past["total_inr"] - total_inr) < 5.0:
                 violations.append(f"DUPLICATE_DETECTED: Matches earlier ₹{past['total_inr']} claim.")
                 risk_score = 95
                 reimbursable_inr = 0.0
 
     big_ticket = policy.get("big_ticket_threshold", 15000.0)
-    has_company_gstin = receipt.get("has_company_gstin", True)
+    has_company_gstin = employee_profile.get("gst_number", "").strip() != ""
     if total_inr >= big_ticket and not has_company_gstin:
-        violations.append(f"BIG_TICKET_GST_MISSING: Purchase >= ₹{big_ticket:,.0f} lacks mandatory company GSTIN.")
+        violations.append(f"BIG_TICKET_GST_MISSING: Purchase >= ₹{big_ticket:,.0f} requires employee/company GSTIN setup.")
         risk_score += 35
 
     if "Home Office" in context:
@@ -254,7 +318,7 @@ def run_deterministic_audit(receipt: dict, employee: str, context: str, client_i
     else:
         daily_cap = policy["tier2_cap"]
 
-    prior_daily_spend = sum(x["reimbursed_inr"] for x in history if x["employee"] == employee and x["date"] == receipt["transaction_date"])
+    prior_daily_spend = sum(x["reimbursed_inr"] for x in history if x["employee"] == employee_name and x["date"] == receipt["transaction_date"])
     if reimbursable_inr > 0 and (prior_daily_spend + reimbursable_inr) > daily_cap:
         allowed_remaining = max(0.0, round(daily_cap - prior_daily_spend, 2))
         violations.append(f"DAILY_CAP_EXCEEDED: Capped at ₹{allowed_remaining} per day.")
@@ -293,23 +357,20 @@ with st.sidebar:
     user_role = st.radio("Portal Navigation", ["📋 Current Policy View", "👤 Employee Portal", "🕵️‍♂️ Finance Reviewer Portal", "📜 Change History"])
     st.divider()
 
-    if st.button("📥 Load Demo Dataset (5 Bills)", use_container_width=True):
+    if st.button("📥 Load Demo Dataset (3 Bills)", use_container_width=True):
         demo_bills = [
             ("toit_brewpub.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", {
                 "merchant_name": "Toit Brewpub, Indiranagar", "transaction_date": "2026-10-15", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 2250.0, "tax": 112.50, "tip": 225.0, "total_printed": 2587.50, "is_itemized": True, "handwritten_tampering": False, "has_company_gstin": True
-            }),
-            ("upi_screenshot.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", {
-                "merchant_name": "Toit Brewpub Bengaluru (UPI)", "transaction_date": "2026-10-15", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 0.0, "tax": 0.0, "tip": 0.0, "total_printed": 2587.50, "is_itemized": False, "handwritten_tampering": False, "has_company_gstin": False
+                "subtotal": 2250.0, "tax": 112.50, "tip": 225.0, "total_printed": 2587.50, "is_itemized": True, "handwritten_tampering": False
             }),
             ("mumbai_taxi.png", "Priya Nair (Engineering)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "", {
                 "merchant_name": "Shree Sai Tours & Taxi", "transaction_date": "2026-10-16", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 650.0, "tax": 100.0, "tip": 50.0, "total_printed": 1800.0, "is_itemized": True, "handwritten_tampering": True, "has_company_gstin": True
+                "subtotal": 650.0, "tax": 100.0, "tip": 50.0, "total_printed": 1800.0, "is_itemized": True, "handwritten_tampering": True
             })
         ]
+        sample_profile = {"name": "Aarav Sharma (Sales)", "id": "EMP-1042", "gst_number": "29AABCU9603R1ZN", "bank_account": "HDFC Salary A/c ending 4092"}
         for fname, emp, ctx, cli, custom in demo_bills:
-            res = run_deterministic_audit(custom, emp, ctx, cli, active_policy, st.session_state.ledger)
+            res = run_deterministic_audit(custom, sample_profile, ctx, cli, active_policy, st.session_state.ledger)
             st.session_state.ledger.append({
                 "id": len(st.session_state.ledger) + 1, "filename": fname, "employee": emp, "context": ctx,
                 "date": custom["transaction_date"], "merchant": custom["merchant_name"], "orig_currency": custom["currency"],
@@ -337,92 +398,42 @@ if user_role == "📋 Current Policy View":
     col3.metric("Meal Card Cap", f"₹{active_policy['meal_card_limit']} / meal")
 
     st.markdown("---")
-
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["1. General Rules", "2. Categories", "3. Meal Cards", "4. Allowances", "5. Approvals"]
-    )
-
-    with tab1:
-        st.subheader("General Claim Rules")
-        st.markdown(
-            f"""
-        | Rule | System Check | Non-Compliance Action |
-        |---|---|---|
-        | **Valid Bill Required** | Vendor, date, itemized prices, and description present | Reject or Request Info |
-        | **GST Invoice** | Purchases exceeding **₹{active_policy['big_ticket_threshold']:,.0f}** must carry company GSTIN | Flag for Review |
-        | **Merchant GSTIN** | Valid merchant tax registration verified | Flag |
-        | **Filing Window** | Claims submitted within **{active_policy['filing_window_days']} days** of expense | Reject |
-        | **Audit Trail** | Immutable storage of all receipts, edits, and decisions | Automatic |
-        """
-        )
-
-    with tab2:
-        st.subheader("Expense Categories & Limits")
-        st.markdown(
-            f"""
-        | Category | Limits & Settings |
-        |---|---|
-        | **Official Travel & Conveyance** | City Daily Cap: ₹{active_policy['travel_city_limit']:,.0f} \| Category Cap: ₹{active_policy['travel_category_cap']:,.0f} |
-        | **Client Entertainment** | Per Meal Cap: ₹{active_policy['client_meal_cap']:,.0f} (Attendee list required) |
-        | **Communication & Tech** | Category Cap: ₹{active_policy['comm_tech_cap']:,.0f} / month |
-        | **Fuel & Maintenance** | Slabs based on engine capacity (Max CC: {active_policy['fuel_slab_cc']}cc) |
-        """
-        )
-
-    with tab3:
-        st.subheader("Digital Meal Cards (Pluxee / Sodexo Style)")
-        st.markdown(
-            f"""
-        * **Per Meal Limit:** ₹{active_policy['meal_card_limit']} (Up to {active_policy['meal_card_max_per_day']} meals per working day counted).
-        * **Card Mechanism:** Strictly closed-loop or semi-closed prepaid cards; zero cash payouts allowed.
-        * **Merchant Lock:** Restricted exclusively to Food & Beverage MCC codes.
-        * **Deduplication:** Automatically blocks duplicate claims for meals already expensed on corporate cards.
-        """
-        )
-
-    with tab4:
-        st.subheader("Proof-Based Payroll Allowances")
-        st.markdown(
-            """
-        * **HRA:** Exempt amount based on rent minus 10% basic, capped at 50% (metros) or 40% (non-metros). Landlord PAN required above ₹1,00,000 annual rent.
-        * **LTA:** Travel cost exemption claimable twice in a 4-year block period.
-        * **Children Education:** Capped at a maximum of 2 children.
-        * **Telephony & Internet:** 100% tax-free reimbursement upon actual billing.
-        """
-        )
-
-    with tab5:
-        st.subheader("Approval Workflow Structure")
-        st.markdown(
-            """
-        1. **Level 1 (Direct Manager):** Validates operational necessity and business relevance.
-        2. **Level 2 (Finance / AP Reviewer):** Audits limits, tax compliance, and GST validity.
-        3. **Payout Execution:** Automated direct bank credit synced with payroll cycles.
-        """
-        )
+    st.markdown(f"**Loaded Policy Document Notes:**\n> *{active_policy.get('document_text', 'Standard default parameters loaded.')}*")
 
 # ==============================================================================
-# PORTAL 1: EMPLOYEE PORTAL
+# PORTAL 1: EMPLOYEE PORTAL (WITH IDENTITY & BANKING PROFILES)
 # ==============================================================================
 elif user_role == "👤 Employee Portal":
-    st.title("👤 Employee Expense Submission")
-    st.caption("Upload receipts to get reimbursed securely under automated corporate policy.")
+    st.markdown("# 👤 EMPLOYEE EXPENSE SUBMISSION")
+    st.markdown("##### **Manage your corporate identity profile and submit itemized work receipts for rapid payout.**")
 
     col1, col2 = st.columns([1, 1.2])
 
     with col1:
-        st.markdown("#### 📤 New Expense Claim")
-        employee_name = st.selectbox("Employee Name", ["Aarav Sharma (Sales)", "Priya Nair (Engineering)", "Rohan Verma (VP Product)"])
-        trip_context = st.selectbox("Location Context", [
+        st.markdown("### **👤 Employee Identification Profile**")
+        employee_name = st.selectbox("**Select Employee Name**", ["Aarav Sharma (Sales)", "Priya Nair (Engineering)", "Rohan Verma (VP Product)"])
+        emp_id = st.text_input("**Employee ID Number**", value="EMP-1042" if "Aarav" in employee_name else "EMP-2089")
+        emp_gst = st.text_input("**Corporate / Personal GST Number**", value="29AABCU9603R1ZN", placeholder="e.g. 29AAAAA0000A1Z5")
+        emp_bank = st.selectbox(
+            "**Expense Reimbursement Account**",
+            [
+                "HDFC Salary A/c (•••• 4092) - Primary Payroll",
+                "ICICI Corporate Expense Card (•••• 8812)",
+                "Axis Bank Direct Reimbursement A/c"
+            ]
+        )
+
+        st.markdown("---")
+        st.markdown("### **📤 New Expense Claim**")
+        trip_context = st.selectbox("**Location Context**", [
             "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)",
             "Home Office (Local)",
             "Business Trip - Tier 2 City (Pune / Jaipur / Kochi)"
         ])
-        client_info = st.text_input("Client Name & Attendees", placeholder="e.g., Infosys - 3 Attendees")
-        has_company_gstin = st.checkbox("Carries Company GSTIN (for big-ticket items)", value=True)
+        client_info = st.text_input("**Client Name & Attendees**", placeholder="e.g., Infosys - 3 Attendees")
         uploaded_files = st.file_uploader("Upload Receipt (JPG/PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-        with st.expander("🧪 Manual Override Simulator"):
+        with st.expander("🧪 **Manual Override Simulator**"):
             use_custom = st.checkbox("Override OCR values")
             c_merch = st.text_input("Merchant", "Your Restaurant")
             c_date = st.text_input("Date (YYYY-MM-DD)", "2026-10-17")
@@ -430,7 +441,7 @@ elif user_role == "👤 Employee Portal":
             c_tax = st.number_input("Tax / GST (₹)", value=16.85)
             c_tot = st.number_input("Total (₹)", value=690.85)
 
-        submit_btn = st.button("🚀 Submit Claim", use_container_width=True)
+        submit_btn = st.button("🚀 **SUBMIT CLAIM FOR AUDIT**", use_container_width=True)
 
     if submit_btn:
         if not uploaded_files and not use_custom:
@@ -445,6 +456,13 @@ elif user_role == "👤 Employee Portal":
             
             status_text.markdown("<p style='text-align: center; color: #60a5fa;'>🔍 AI Engine reading OCR text, verifying GST math & matching policy...</p>", unsafe_allow_html=True)
 
+            employee_profile = {
+                "name": employee_name,
+                "id": emp_id,
+                "gst_number": emp_gst,
+                "bank_account": emp_bank
+            }
+
             files_to_process = uploaded_files if uploaded_files else [None]
             for uf in files_to_process:
                 fname = uf.name if uf else "manual_bill.png"
@@ -455,15 +473,15 @@ elif user_role == "👤 Employee Portal":
                     custom_dict = {
                         "merchant_name": c_merch, "transaction_date": c_date, "currency": "INR", "fx_rate_to_inr": 1.0,
                         "subtotal": c_sub, "tax": c_tax, "tip": 0.0, "total_printed": c_tot,
-                        "is_itemized": True, "handwritten_tampering": False, "has_company_gstin": has_company_gstin
+                        "is_itemized": True, "handwritten_tampering": False
                     }
 
                 rec = parse_receipt_from_image_bytes(img_bytes, fname, custom_dict)
-                rec["has_company_gstin"] = has_company_gstin
-                res = run_deterministic_audit(rec, employee_name, trip_context, client_info, active_policy, st.session_state.ledger)
+                res = run_deterministic_audit(rec, employee_profile, trip_context, client_info, active_policy, st.session_state.ledger)
 
                 st.session_state.ledger.append({
                     "id": len(st.session_state.ledger) + 1, "filename": fname, "employee": employee_name,
+                    "employee_id": emp_id, "gst_number": emp_gst, "bank_account": emp_bank,
                     "context": trip_context, "date": rec["transaction_date"], "merchant": rec["merchant_name"],
                     "orig_currency": rec["currency"], "total_inr": res["total_inr"], "reimbursed_inr": res["reimbursed_inr"],
                     "policy_version": active_policy["version"], "mgr_signoff": "Yes ⚠️" if res["requires_mgr"] else "No",
@@ -480,19 +498,29 @@ elif user_role == "👤 Employee Portal":
             
             st.success("✅ Receipt successfully scanned, audited, and added to ledger!")
 
+    with col2:
+        st.markdown(f"### **📋 Reimbursement Tracker ({employee_name.split(' ')[0]})**")
+        my_claims = [c for c in st.session_state.ledger if c["employee"] == employee_name]
+        if not my_claims:
+            st.info("No claims submitted yet.")
+        else:
+            for item in reversed(my_claims):
+                badge = {"APPROVED": "🟢 Approved", "PARTIAL_APPROVAL": "🟡 Partial", "FLAGGED_FOR_REVIEW": "🟠 Under Review", "REJECTED": "🔴 Rejected"}.get(item["status"], "🟠")
+                st.markdown(f"**{badge} | {item['merchant']}** (`{item['date']}`)")
+                st.markdown(f"Claimed: `₹{item['total_inr']:,.2f}` ➡️ Payout A/c: `{item.get('bank_account', 'Salary A/c')[:20]}`")
+                st.caption(f"{item['employee_message']}")
+                st.divider()
+
 # ==============================================================================
-# PORTAL 2: FINANCE REVIEWER PORTAL (WITH PIN PROTECTION & BACKUP/RESTORE)
+# PORTAL 2: FINANCE REVIEWER PORTAL (DOCUMENT UPLOAD / TEXT POLICY PARSING)
 # ==============================================================================
 elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
     st.title("🕵️‍♂️ Finance Governance Center")
     
-    # Secure PIN Gate
-    pin = st.sidebar.text_input("Admin PIN (1234)", value="", type="password")
+    pin = st.sidebar.text_input("Admin PIN (1234)", value="1234", type="password")
     if pin != "1234":
-        st.warning("🔒 Please enter the Admin PIN (`1234`) in the sidebar to access governance features.")
+        st.error("Access Denied. Enter PIN 1234.")
         st.stop()
-    else:
-        st.success("🔓 Admin access verified successfully.")
 
     tab1, tab2, tab3, tab4 = st.tabs(["🚨 Audit Queue", "🛡️ Policy Control (Option C)", "📊 Monthly Ledger", "💾 Backup & Restore"])
 
@@ -502,43 +530,55 @@ elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
         else:
             for idx, item in enumerate(reversed(st.session_state.ledger)):
                 color = {"APPROVED": "🟢", "PARTIAL_APPROVAL": "🟡", "FLAGGED_FOR_REVIEW": "🟠", "REJECTED": "🔴"}.get(item["status"], "🟠")
-                with st.expander(f"{color} [{item['status']}] {item['employee']} — {item['merchant']} (₹{item['total_inr']:,.2f})"):
+                with st.expander(f"{color} [{item['status']}] {item['employee']} ({item.get('employee_id', 'N/A')}) — {item['merchant']} (₹{item['total_inr']:,.2f})"):
                     c1, c2 = st.columns([1, 2])
                     with c1:
                         if item["image_bytes"]:
                             st.image(item["image_bytes"], use_container_width=True)
                     with c2:
-                        st.markdown(f"**Payout:** `₹{item['reimbursed_inr']:,.2f}` | **Risk:** `{item['risk_score']}/100`")
+                        st.markdown(f"**Payout A/c:** `{item.get('bank_account', 'Salary A/c')}`")
+                        st.markdown(f"**Approved Payout:** `₹{item['reimbursed_inr']:,.2f}` | **Risk:** `{item['risk_score']}/100`")
                         st.write(f"**Forensic Note:** {item['finance_reasoning']}")
                         if item["violations"]:
                             st.error(f"**Violations:** {item['violations']}")
 
     with tab2:
-        st.markdown("#### Safeguarded Policy Versioning")
-        with st.form("policy_editor_form"):
+        st.markdown("#### Safeguarded Policy Versioning & Document Ingestion")
+        st.markdown("Paste a complete company policy document below, or click the **Load Dummy Policy Document** button to auto-populate thresholds.")
+
+        with st.form("policy_document_form"):
             author_name = st.text_input("Reviewer Name", "Vikram Mehta")
-            change_reason = st.text_input("Justification", "Q4 Cap Adjustment")
-            new_filing = st.number_input("Filing Window (Days)", min_value=1, max_value=180, value=int(active_policy.get("filing_window_days", 30)))
-            new_big_ticket = st.number_input("Big-Ticket GST Threshold (₹)", min_value=1000.0, max_value=100000.0, value=float(active_policy.get("big_ticket_threshold", 15000.0)), step=1000.0)
-            new_t1 = st.number_input("Tier-1 Metro Daily Cap (₹)", value=float(active_policy["tier1_cap"]))
-            new_meal_limit = st.number_input("Meal Card Limit per Meal (₹)", value=float(active_policy.get("meal_card_limit", 200.0)))
+            change_reason = st.text_input("Justification", "Updated via document parsing")
             
-            commit_btn = st.form_submit_button("Commit New Policy Version")
-            if commit_btn:
+            sample_policy_doc = """
+            CORPORATE EXPENSE GOVERNANCE GUIDELINE v2.4
+            - Filing Window: Claims must be filed within 45 days of expense generation.
+            - Big-Ticket Threshold: Purchases exceeding ₹20,000 must carry valid corporate GSTIN.
+            - Tier-1 Metro Cap: Daily hotel and meal allowance capped at ₹30,000.
+            - Digital Meal Cards: Restricted to ₹250 per transaction limit.
+            """
+            
+            doc_input = st.text_area("Full Policy Document Text / Guidelines:", value=active_policy.get("document_text", sample_policy_doc), height=180)
+            
+            col_d1, col_d2 = st.columns(2)
+            load_dummy_btn = col_d1.form_submit_button("⚡ Load Standard Dummy Policies")
+            commit_doc_btn = col_d2.form_submit_button("🔒 Parse & Commit New Policy Version", type="primary")
+
+            if load_dummy_btn:
+                doc_input = sample_policy_doc
+                st.success("Loaded dummy guidelines text! Click Commit to apply.")
+
+            if commit_doc_btn:
+                parsed_dict = parse_policy_document_text(doc_input, active_policy)
                 next_ver = f"v1.{len(st.session_state.policy_versions)}"
-                new_pol = dict(active_policy)
-                new_pol.update({
+                parsed_dict.update({
                     "version": next_ver,
                     "updated_by": author_name,
                     "reason": change_reason,
-                    "filing_window_days": new_filing,
-                    "big_ticket_threshold": new_big_ticket,
-                    "tier1_cap": new_t1,
-                    "meal_card_limit": new_meal_limit,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
-                st.session_state.policy_versions.append(new_pol)
-                st.success(f"Published {next_ver} successfully!")
+                st.session_state.policy_versions.append(parsed_dict)
+                st.success(f"Successfully parsed document and published Policy Version **{next_ver}**!")
                 st.rerun()
 
     with tab3:
@@ -548,44 +588,12 @@ elif user_role == "🕵️‍♂️ Finance Reviewer Portal":
             st.download_button("Download CSV Ledger", df.to_csv(index=False).encode("utf-8"), "ledger.csv", "mime/csv")
 
     with tab4:
-        st.subheader("💾 Export & Import System Backups")
-        
-        col_exp, col_imp = st.columns(2)
-        
-        with col_exp:
-            st.markdown("##### Export Backup")
-            backup_data = {
-                "export_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "active_policy_version": active_policy["version"],
-                "policy_versions_history": st.session_state.policy_versions,
-                "audit_ledger": [{k: v for k, v in item.items() if k != "image_bytes"} for item in st.session_state.ledger]
-            }
-            json_string = json.dumps(backup_data, indent=4, default=str)
-            st.download_button(
-                label="📥 Download JSON Backup",
-                data=json_string,
-                file_name=f"finance_policy_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json",
-                use_container_width=True
-            )
-
-        with col_imp:
-            st.markdown("##### Restore Backup")
-            uploaded_backup = st.file_uploader("Upload Backup JSON", type=["json"])
-            if uploaded_backup is not None:
-                try:
-                    backup_content = json.load(uploaded_backup)
-                    if "policy_versions_history" in backup_content and "audit_ledger" in backup_content:
-                        st.success("Backup validated successfully!")
-                        if st.button("⚠️ Confirm & Overwrite State", type="primary", use_container_width=True):
-                            st.session_state.policy_versions = backup_content["policy_versions_history"]
-                            st.session_state.ledger = backup_content["audit_ledger"]
-                            st.success("System restored successfully! Refreshing...")
-                            st.rerun()
-                    else:
-                        st.error("Invalid backup format: Missing keys.")
-                except Exception as e:
-                    st.error(f"Failed to parse JSON: {e}")
+        st.subheader("💾 System State Backup & Restore")
+        backup_data = {
+            "policy_versions_history": st.session_state.policy_versions,
+            "audit_ledger": [{k: v for k, v in item.items() if k != "image_bytes"} for item in st.session_state.ledger]
+        }
+        st.download_button("📥 Download JSON Backup", json.dumps(backup_data, indent=4, default=str), "backup.json", "application/json")
 
 # ==============================================================================
 # PORTAL 3: CHANGE HISTORY
@@ -598,10 +606,10 @@ elif user_role == "📜 Change History":
         with st.container():
             st.markdown(
                 f"""
-            **🕒 {record.get('timestamp', 'N/A')}** (Version: `{record['version']}`)  
-            * **Updated By:** {record.get('updated_by', 'System')}  
-            * **Reason:** {record.get('reason', 'Initial release')}  
-            * **Key Parameters:** Filing Window = {record.get('filing_window_days', 30)}d, Big-Ticket = ₹{record.get('big_ticket_threshold', 15000):,.0f}, Tier-1 Cap = ₹{record.get('tier1_cap', 25000):,.0f}
-            ---
-            """
+                **🕒 {record.get('timestamp', 'N/A')}** (Version: `{record['version']}`)  
+                * **Updated By:** {record.get('updated_by', 'System')}  
+                * **Reason:** {record.get('reason', 'Initial release')}  
+                * **Extracted Thresholds:** Filing Window = {record.get('filing_window_days', 30)}d, Big-Ticket = ₹{record.get('big_ticket_threshold', 15000):,.0f}, Tier-1 Cap = ₹{record.get('tier1_cap', 25000):,.0f}  
+                ---
+                """
             )
