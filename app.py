@@ -32,7 +32,6 @@ st.set_page_config(page_title="The Receipt Graveyard | Enterprise Audit OS", pag
 
 st.markdown("""
 <style>
-    /* Global Futura Font & Restrained Deep Navy / Blue / Off-White Palette */
     .stApp {
         background-color: #080b11;
         background-image: radial-gradient(circle at 10% 10%, rgba(30, 41, 59, 0.4) 0%, transparent 40%),
@@ -48,9 +47,9 @@ st.markdown("""
         color: #f8fafc !important;
     }
     
-    h1 { font-size: 2.8rem !important; margin-bottom: 0.75rem !important; }
-    h2 { font-size: 2rem !important; }
-    h3 { font-size: 1.4rem !important; }
+    h1 { font-size: 2.5rem !important; margin-bottom: 0.75rem !important; }
+    h2 { font-size: 1.8rem !important; }
+    h3 { font-size: 1.3rem !important; }
 
     p, span, label, div {
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
@@ -61,7 +60,6 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Generous White Space & Frosted Feature Cards */
     .feature-card {
         background: rgba(255, 255, 255, 0.02);
         backdrop-filter: blur(16px);
@@ -85,7 +83,6 @@ st.markdown("""
         margin-bottom: 0.75rem;
     }
 
-    /* Snug Metric Cards */
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(12px);
@@ -103,14 +100,12 @@ st.markdown("""
         font-size: 1.5rem !important;
     }
 
-    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: rgba(8, 11, 17, 0.98);
         border-right: 1px solid rgba(255, 255, 255, 0.04);
         padding-top: 1.5rem;
     }
 
-    /* High-Contrast CTA Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
         color: #ffffff;
@@ -175,8 +170,15 @@ if "policy_versions" not in st.session_state:
 
 active_policy = st.session_state.policy_versions[-1]
 
+FX_RATES = {
+    "INR": 1.0,
+    "USD": 84.50,
+    "EUR": 91.20,
+    "GBP": 109.40,
+    "SGD": 63.20
+}
 
-# --- 2. OFFLINE OCR & PARSER ---
+# --- 2. ADVANCED OFFLINE OCR & DEEP MATH PARSER ---
 def parse_receipt_from_image_bytes(image_bytes: bytes, filename: str, custom_override: dict = None) -> dict:
     if custom_override:
         return custom_override
@@ -200,7 +202,7 @@ def parse_receipt_from_image_bytes(image_bytes: bytes, filename: str, custom_ove
             merchant_name = l.title()
             break
 
-    date_found = "2026-10-15"
+    date_found = datetime.now().strftime("%Y-%m-%d")
     m_dmy = re.search(r"(\d{2})[/-](\d{2})[/-](20\d{2})", raw_text)
     if m_dmy:
         date_found = f"{m_dmy.group(3)}-{m_dmy.group(2)}-{m_dmy.group(1)}"
@@ -231,6 +233,17 @@ def parse_receipt_from_image_bytes(image_bytes: bytes, filename: str, custom_ove
     if total_printed == 0.0 and subtotal > 0:
         total_printed = round(subtotal + tax, 2)
 
+    alcohol_keywords = ["BEER", "WINE", "WHISKEY", "LIQUOR", "ALCOHOL", "COCKTAIL"]
+    line_items = []
+    detected_alcohol_amt = 0.0
+    for l in lines:
+        if any(ak in l.upper() for ak in alcohol_keywords):
+            detected_alcohol_amt += 500.0
+            line_items.append({"description": l, "amount": 500.0, "category": "Alcohol"})
+
+    if not line_items:
+        line_items.append({"description": "General Expense Items", "amount": total_printed, "category": "General"})
+
     return {
         "merchant_name": merchant_name,
         "transaction_date": date_found,
@@ -242,7 +255,8 @@ def parse_receipt_from_image_bytes(image_bytes: bytes, filename: str, custom_ove
         "total_printed": round(total_printed, 2),
         "is_itemized": True,
         "handwritten_tampering": False,
-        "line_items": [{"description": "Itemized Bill", "amount": subtotal if subtotal > 0 else total_printed, "category": "Food"}]
+        "line_items": line_items,
+        "detected_alcohol": detected_alcohol_amt
     }
 
 
@@ -263,11 +277,14 @@ def parse_policy_document_text(doc_text: str, current_policy: dict) -> dict:
     return new_pol
 
 
-def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str, client_info: str, policy: dict, history: list) -> dict:
+def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str, client_info: str, currency_code: str, policy: dict, history: list) -> dict:
     violations = []
     risk_score = 10
     employee_name = employee_profile.get("name", "Unknown Employee")
-    total_inr = round(receipt["total_printed"], 2)
+    
+    fx_rate = FX_RATES.get(currency_code, 1.0)
+    raw_amount = receipt["total_printed"]
+    total_inr = round(raw_amount * fx_rate, 2)
     reimbursable_inr = total_inr
 
     if total_inr <= 0:
@@ -279,23 +296,29 @@ def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str,
         }
 
     calc_total = round(receipt["subtotal"] + receipt["tax"] + receipt["tip"], 2)
-    if receipt["subtotal"] > 0 and abs(calc_total - receipt["total_printed"]) > 1.0:
-        violations.append(f"MATH_MISMATCH: Printed (₹{receipt['total_printed']}) != Sum (₹{calc_total})")
+    if receipt["subtotal"] > 0 and abs(calc_total - raw_amount) > 1.0:
+        violations.append(f"MATH_MISMATCH: Printed Total ({currency_code} {raw_amount}) != Subtotal+Tax+Tip ({currency_code} {calc_total})")
         risk_score += 65
         reimbursable_inr = 0.0
 
     for past in history:
         if past["employee"] == employee_name and past["date"] == receipt["transaction_date"]:
             if abs(past["total_inr"] - total_inr) < 5.0:
-                violations.append(f"DUPLICATE_DETECTED: Matches earlier ₹{past['total_inr']} claim.")
+                violations.append(f"DUPLICATE_DETECTED: Matches earlier ₹{past['total_inr']} claim on same date.")
                 risk_score = 95
                 reimbursable_inr = 0.0
 
     big_ticket = policy.get("big_ticket_threshold", 15000.0)
     has_company_gstin = employee_profile.get("gst_number", "").strip() != ""
     if total_inr >= big_ticket and not has_company_gstin:
-        violations.append(f"BIG_TICKET_GST_MISSING: Purchase >= ₹{big_ticket:,.0f} requires company GSTIN.")
+        violations.append(f"BIG_TICKET_GST_MISSING: Purchase >= ₹{big_ticket:,.0f} requires company GSTIN verification.")
         risk_score += 35
+
+    banned_amount_inr = receipt.get("detected_alcohol", 0.0) * fx_rate
+    if banned_amount_inr > 0 and reimbursable_inr > 0:
+        reimbursable_inr = max(0.0, reimbursable_inr - banned_amount_inr)
+        violations.append(f"BANNED_CATEGORY_DEDUCTION: Automatically deducted ₹{banned_amount_inr:,.2f} for restricted items.")
+        risk_score += 25
 
     if "Home Office" in context:
         daily_cap = policy["home_cap"]
@@ -307,12 +330,12 @@ def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str,
     prior_daily_spend = sum(x["reimbursed_inr"] for x in history if x["employee"] == employee_name and x["date"] == receipt["transaction_date"])
     if reimbursable_inr > 0 and (prior_daily_spend + reimbursable_inr) > daily_cap:
         allowed_remaining = max(0.0, round(daily_cap - prior_daily_spend, 2))
-        violations.append(f"DAILY_CAP_EXCEEDED: Capped at ₹{allowed_remaining} per day.")
+        violations.append(f"DAILY_CAP_EXCEEDED: Prior spend + claim exceeds daily cap of ₹{daily_cap:,.0f}. Capped at ₹{allowed_remaining:,.2f}.")
         reimbursable_inr = allowed_remaining
         risk_score += 20
 
     if total_inr > policy["client_threshold"] and not client_info.strip():
-        violations.append(f"MISSING_CLIENT_DETAILS: Bills over ₹{policy['client_threshold']} require attendee info.")
+        violations.append(f"MISSING_CLIENT_DETAILS: Claims over ₹{policy['client_threshold']} require client name and attendee count.")
         risk_score += 20
 
     requires_mgr = total_inr > policy["mgr_threshold"] or risk_score >= 60
@@ -331,7 +354,7 @@ def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str,
         "requires_mgr": requires_mgr,
         "violations": violations,
         "risk_score": min(100, risk_score),
-        "employee_message": f"Processed under policy {policy['version']}. Status: {status}",
+        "employee_message": f"Processed under policy {policy['version']}. Status: {status} | Forex Rate: 1 {currency_code} = ₹{fx_rate}",
         "finance_reasoning": f"Triggers: {'; '.join(violations) if violations else 'None'}"
     }
 
@@ -352,24 +375,25 @@ with st.sidebar:
     if st.button("Load Demo Dataset", use_container_width=True):
         demo_bills = [
             ("toit_brewpub.png", "Aarav Sharma (Sales)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "Infosys - 3 Attendees", {
-                "merchant_name": "Toit Brewpub, Indiranagar", "transaction_date": "2026-10-15", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 2250.0, "tax": 112.50, "tip": 225.0, "total_printed": 2587.50, "is_itemized": True, "handwritten_tampering": False
+                "merchant_name": "Toit Brewpub, Indiranagar", "transaction_date": datetime.now().strftime("%Y-%m-%d"), "currency": "INR", "fx_rate_to_inr": 1.0,
+                "subtotal": 2250.0, "tax": 112.50, "tip": 225.0, "total_printed": 2587.50, "is_itemized": True, "handwritten_tampering": False, "detected_alcohol": 0.0
             }),
             ("mumbai_taxi.png", "Priya Nair (Engineering)", "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)", "", {
-                "merchant_name": "Shree Sai Tours & Taxi", "transaction_date": "2026-10-16", "currency": "INR", "fx_rate_to_inr": 1.0,
-                "subtotal": 650.0, "tax": 100.0, "tip": 50.0, "total_printed": 1800.0, "is_itemized": True, "handwritten_tampering": True
+                "merchant_name": "Shree Sai Tours & Taxi", "transaction_date": datetime.now().strftime("%Y-%m-%d"), "currency": "INR", "fx_rate_to_inr": 1.0,
+                "subtotal": 650.0, "tax": 100.0, "tip": 50.0, "total_printed": 1800.0, "is_itemized": True, "handwritten_tampering": True, "detected_alcohol": 0.0
             })
         ]
-        sample_profile = {"name": "Aarav Sharma (Sales)", "id": "EMP-1042", "gst_number": "29AABCU9603R1ZN", "bank_account": "HDFC Salary A/c"}
+        sample_profile = {"name": "Aarav Sharma (Sales)", "id": "EMP-1042", "designation": "Senior Account Executive", "organization": "Enterprise Sales Division", "gst_number": "29AABCU9603R1ZN", "bank_account": "HDFC Salary A/c"}
         for fname, emp, ctx, cli, custom in demo_bills:
-            res = run_deterministic_audit(custom, sample_profile, ctx, cli, active_policy, st.session_state.ledger)
+            res = run_deterministic_audit(custom, sample_profile, ctx, cli, "INR", active_policy, st.session_state.ledger)
             st.session_state.ledger.append({
-                "id": len(st.session_state.ledger) + 1, "filename": fname, "employee": emp, "context": ctx,
-                "date": custom["transaction_date"], "merchant": custom["merchant_name"], "orig_currency": custom["currency"],
-                "total_inr": res["total_inr"], "reimbursed_inr": res["reimbursed_inr"], "policy_version": active_policy["version"],
+                "id": len(st.session_state.ledger) + 1, "filename": fname, "employee": emp, "designation": sample_profile["designation"],
+                "organization": sample_profile["organization"], "employee_id": sample_profile["id"], "gst_number": sample_profile["gst_number"],
+                "bank_account": sample_profile["bank_account"], "context": ctx, "date": custom["transaction_date"], "merchant": custom["merchant_name"],
+                "orig_currency": "INR", "total_inr": res["total_inr"], "reimbursed_inr": res["reimbursed_inr"], "policy_version": active_policy["version"],
                 "mgr_signoff": "Yes" if res["requires_mgr"] else "No", "status": res["status"], "risk_score": res["risk_score"],
-                "violations": ", ".join(res["violations"]), "employee_message": res["employee_message"],
-                "finance_reasoning": res["finance_reasoning"], "raw_receipt": custom, "image_bytes": None
+                "violations": ", ".join(res["violations"]), "employee_message": res["employee_message"], "finance_reasoning": res["finance_reasoning"],
+                "raw_receipt": custom, "image_bytes": None
             })
         st.rerun()
 
@@ -381,7 +405,6 @@ with st.sidebar:
 # PORTAL -1: LANDING PAGE (WELCOME)
 # ==============================================================================
 if user_role == "Welcome":
-    # Hero Section
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; color: #f8fafc;'>Autonomous Corporate Expense Governance & Fraud Audit</h1>", unsafe_allow_html=True)
     st.markdown(
@@ -392,7 +415,6 @@ if user_role == "Welcome":
         unsafe_allow_html=True
     )
 
-    # High-Contrast CTA Button Container
     col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
     with col_c2:
         if st.button("Launch Application Portal", use_container_width=True):
@@ -400,9 +422,7 @@ if user_role == "Welcome":
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # 3-4 Feature Cards with Clean Vector Symbols
     f1, f2, f3 = st.columns(3, gap="large")
-    
     with f1:
         st.markdown("""
         <div class="feature-card">
@@ -437,8 +457,6 @@ if user_role == "Welcome":
         """, unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    # Simple Professional Footer
     st.markdown("""
     <hr style="border-color: rgba(255,255,255,0.06); margin-bottom: 2rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; font-size: 0.85rem; padding-bottom: 2rem;">
@@ -463,19 +481,21 @@ elif user_role == "Policy Framework":
     st.markdown(f"**Active Policy Document:**\n> *{active_policy.get('document_text', 'Standard default parameters loaded.')}*")
 
 # ==============================================================================
-# PORTAL 1: EMPLOYEE PORTAL
+# PORTAL 1: EMPLOYEE PORTAL (POLISHED & ADVANCED INTAKE FORM)
 # ==============================================================================
 elif user_role == "Employee Portal":
     st.markdown("# Employee Expense Submission")
-    st.markdown("Manage employee profile identity and submit structured work receipts for rapid reimbursement.")
+    st.markdown("Submit comprehensive expense claims with professional organizational metadata and out-of-pocket currency conversion.")
 
     col1, col2 = st.columns([1, 1.2], gap="medium")
 
     with col1:
-        st.markdown("### Employee Identification Profile")
+        st.markdown("### Professional Identity & Organization")
         employee_name = st.selectbox("Select Employee Name", ["Aarav Sharma (Sales)", "Priya Nair (Engineering)", "Rohan Verma (VP Product)"])
         emp_id = st.text_input("Employee ID Number", value="EMP-1042" if "Aarav" in employee_name else "EMP-2089")
-        emp_gst = st.text_input("Corporate / Personal GST Number", value="29AABCU9603R1ZN", placeholder="e.g. 29AAAAA0000A1Z5")
+        designation = st.text_input("Job Designation", value="Senior Account Executive")
+        organization = st.text_input("Organization / Department", value="Enterprise Sales Division")
+        emp_gst = st.text_input("Corporate / Personal GST Number", value="29AABCU9603R1ZN")
         emp_bank = st.selectbox(
             "Expense Reimbursement Account",
             [
@@ -486,22 +506,32 @@ elif user_role == "Employee Portal":
         )
 
         st.markdown("---")
-        st.markdown("### New Expense Claim")
+        st.markdown("### Expense Claim Details")
+        col_cur, col_dt = st.columns(2)
+        with col_cur:
+            currency_code = st.selectbox("Currency", ["INR", "USD", "EUR", "GBP", "SGD"])
+        with col_dt:
+            expense_time = st.text_input("Receipt Date & Time", value=datetime.now().strftime("%Y-%m-%d %H:%M"))
+
         trip_context = st.selectbox("Location Context", [
             "Business Trip - Tier 1 Metro (Mumbai / Bengaluru / Delhi NCR)",
             "Home Office (Local)",
             "Business Trip - Tier 2 City (Pune / Jaipur / Kochi)"
         ])
-        client_info = st.text_input("Client Name & Attendees", placeholder="e.g., Infosys - 3 Attendees")
-        uploaded_files = st.file_uploader("Upload Receipt (JPG/PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        col_collab, col_cli = st.columns(2)
+        with col_collab:
+            colleagues = st.text_input("Colleagues Involved", placeholder="e.g. Rahul Verma")
+        with col_cli:
+            client_info = st.text_input("Client & Attendee Count", placeholder="e.g. Infosys - 3")
+
+        uploaded_files = st.file_uploader("Upload Receipt Image (JPG/PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
         with st.expander("Manual Override Simulator"):
             use_custom = st.checkbox("Override OCR values")
             c_merch = st.text_input("Merchant", "Your Restaurant")
-            c_date = st.text_input("Date (YYYY-MM-DD)", "2026-10-17")
-            c_sub = st.number_input("Subtotal (₹)", value=674.0)
-            c_tax = st.number_input("Tax / GST (₹)", value=16.85)
-            c_tot = st.number_input("Total (₹)", value=690.85)
+            c_sub = st.number_input("Subtotal", value=674.0)
+            c_tax = st.number_input("Tax / GST", value=16.85)
+            c_tot = st.number_input("Total Bill Amount", value=690.85)
 
         submit_btn = st.button("Submit Claim for Audit", use_container_width=True)
 
@@ -516,11 +546,13 @@ elif user_role == "Employee Portal":
                 with animation_placeholder:
                     st_lottie(lottie_scanning, height=100, key="scanning")
             
-            status_text.markdown("<p style='text-align: center; color: #60a5fa;'>Analyzing OCR text, verifying tax logic, and validating policy...</p>", unsafe_allow_html=True)
+            status_text.markdown("<p style='text-align: center; color: #60a5fa;'>Executing deterministic OCR, tax verification & forex rules...</p>", unsafe_allow_html=True)
 
             employee_profile = {
                 "name": employee_name,
                 "id": emp_id,
+                "designation": designation,
+                "organization": organization,
                 "gst_number": emp_gst,
                 "bank_account": emp_bank
             }
@@ -533,19 +565,20 @@ elif user_role == "Employee Portal":
                 custom_dict = None
                 if use_custom:
                     custom_dict = {
-                        "merchant_name": c_merch, "transaction_date": c_date, "currency": "INR", "fx_rate_to_inr": 1.0,
-                        "subtotal": c_sub, "tax": c_tax, "tip": 0.0, "total_printed": c_tot,
-                        "is_itemized": True, "handwritten_tampering": False
+                        "merchant_name": c_merch, "transaction_date": expense_time.split(" ")[0], "currency": currency_code,
+                        "fx_rate_to_inr": FX_RATES[currency_code], "subtotal": c_sub, "tax": c_tax, "tip": 0.0,
+                        "total_printed": c_tot, "is_itemized": True, "handwritten_tampering": False, "detected_alcohol": 0.0
                     }
 
                 rec = parse_receipt_from_image_bytes(img_bytes, fname, custom_dict)
-                res = run_deterministic_audit(rec, employee_profile, trip_context, client_info, active_policy, st.session_state.ledger)
+                res = run_deterministic_audit(rec, employee_profile, trip_context, client_info, currency_code, active_policy, st.session_state.ledger)
 
                 st.session_state.ledger.append({
                     "id": len(st.session_state.ledger) + 1, "filename": fname, "employee": employee_name,
-                    "employee_id": emp_id, "gst_number": emp_gst, "bank_account": emp_bank,
-                    "context": trip_context, "date": rec["transaction_date"], "merchant": rec["merchant_name"],
-                    "orig_currency": rec["currency"], "total_inr": res["total_inr"], "reimbursed_inr": res["reimbursed_inr"],
+                    "designation": designation, "organization": organization, "employee_id": emp_id,
+                    "gst_number": emp_gst, "bank_account": emp_bank, "colleagues": colleagues,
+                    "context": trip_context, "date": expense_time, "merchant": rec["merchant_name"],
+                    "orig_currency": currency_code, "total_inr": res["total_inr"], "reimbursed_inr": res["reimbursed_inr"],
                     "policy_version": active_policy["version"], "mgr_signoff": "Yes" if res["requires_mgr"] else "No",
                     "status": res["status"], "risk_score": res["risk_score"], "violations": ", ".join(res["violations"]),
                     "employee_message": res["employee_message"], "finance_reasoning": res["finance_reasoning"],
@@ -558,7 +591,7 @@ elif user_role == "Employee Portal":
             if lottie_success:
                 st_lottie(lottie_success, height=70, key="success_anim")
             
-            st.success("Receipt successfully scanned, audited, and added to ledger.")
+            st.success("Claim successfully processed, audited, and entered into ledger.")
 
     with col2:
         st.markdown(f"### Reimbursement Tracker ({employee_name.split(' ')[0]})")
@@ -591,13 +624,13 @@ elif user_role == "Finance Reviewer Portal":
             st.info("Queue is empty.")
         else:
             for idx, item in enumerate(reversed(st.session_state.ledger)):
-                with st.expander(f"[{item['status']}] {item['employee']} ({item.get('employee_id', 'N/A')}) — {item['merchant']} (₹{item['total_inr']:,.2f})"):
+                with st.expander(f"[{item['status']}] {item['employee']} ({item.get('designation', 'Staff')}) — {item['merchant']} (₹{item['total_inr']:,.2f})"):
                     c1, c2 = st.columns([1, 2])
                     with c1:
                         if item["image_bytes"]:
                             st.image(item["image_bytes"], use_container_width=True)
                     with c2:
-                        st.markdown(f"**Payout A/c:** `{item.get('bank_account', 'Salary A/c')}`")
+                        st.markdown(f"**Organization:** `{item.get('organization', 'N/A')}` | **A/c:** `{item.get('bank_account', 'Salary A/c')}`")
                         st.markdown(f"**Approved Payout:** `₹{item['reimbursed_inr']:,.2f}` | **Risk Score:** `{item['risk_score']}/100`")
                         st.write(f"**Forensic Note:** {item['finance_reasoning']}")
                         if item["violations"]:
