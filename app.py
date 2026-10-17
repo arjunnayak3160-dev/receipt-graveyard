@@ -12,7 +12,22 @@ try:
     OCR_AVAILABLE = True
 except Exception:
     OCR_AVAILABLE = False
+import requests
+from streamlit_lottie import st_lottie
 
+# Helper to load Lottie animations from public JSON URLs safely
+def load_lottie_url(url: str):
+    try:
+        r = requests.get(url, timeout=3)
+        if r.status_code != 200:
+            return None
+        return r.json()
+    except Exception:
+        return None
+
+# Load sleek tech/scanning and success animations
+lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
+lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
 # --- PAGE SETUP & APPLE TRANSLUCENT CSS THEME ---
 st.set_page_config(page_title="The Receipt Graveyard", page_icon="🧾", layout="wide")
 
@@ -326,8 +341,19 @@ if user_role == "👤 Employee Portal":
 
     if submit_btn:
         if not uploaded_files and not use_custom:
-            st.warning("Please upload a receipt image or use the simulator.")
+            st.warning("⚠️ Please upload a receipt image first.")
         else:
+            # Create an eye-catching visual container for the scan process
+            animation_placeholder = st.empty()
+            status_text = st.empty()
+
+            if lottie_scanning:
+                with animation_placeholder:
+                    st_lottie(lottie_scanning, height=150, key="scanning")
+            
+            status_text.markdown("<p style='text-align: center; color: #60a5fa;'>🔍 AI Engine reading OCR text, verifying GST math & matching policy...</p>", unsafe_allow_html=True)
+
+            # --- YOUR PROCESSING LOGIC STARTS HERE ---
             files_to_process = uploaded_files if uploaded_files else [None]
             for uf in files_to_process:
                 fname = uf.name if uf else "manual_bill.png"
@@ -353,21 +379,16 @@ if user_role == "👤 Employee Portal":
                     "employee_message": res["employee_message"], "finance_reasoning": res["finance_reasoning"],
                     "raw_receipt": rec, "image_bytes": img_bytes
                 })
-                st.success(f"Claim successfully processed for `{rec['merchant_name']}`!")
+            # --- YOUR PROCESSING LOGIC ENDS HERE ---
 
-    with col2:
-        st.markdown(f"#### 📋 Reimbursement Tracker ({employee_name.split(' ')[0]})")
-        my_claims = [c for c in st.session_state.ledger if c["employee"] == employee_name]
-        if not my_claims:
-            st.info("No claims submitted yet.")
-        else:
-            for item in reversed(my_claims):
-                badge = {"APPROVED": "🟢 Approved", "PARTIAL_APPROVAL": "🟡 Partial", "FLAGGED_FOR_REVIEW": "🟠 Under Review", "REJECTED": "🔴 Rejected"}.get(item["status"], "🟠")
-                st.markdown(f"**{badge} | {item['merchant']}** (`{item['date']}`)")
-                st.markdown(f"Claimed: `₹{item['total_inr']:,.2f}` ➡️ Payout: `₹{item['reimbursed_inr']:,.2f}`")
-                st.caption(f"{item['employee_message']}")
-                st.divider()
+            # Clear the scanning animation and show success
+            animation_placeholder.empty()
+            status_text.empty()
 
+            if lottie_success:
+                st_lottie(lottie_success, height=100, key="success_anim")
+            
+            st.success("✅ Receipt successfully scanned, audited, and added to ledger!")
 # ==============================================================================
 # PORTAL 2: FINANCE REVIEWER PORTAL
 # ==============================================================================
