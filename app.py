@@ -27,8 +27,8 @@ def load_lottie_url(url: str):
 lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
 lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
 
-# --- PAGE SETUP & CLEAN PROFESSIONAL CSS ---
-st.set_page_config(page_title="The Receipt Graveyard | Enterprise Audit OS", page_icon="🧾", layout="wide", initial_sidebar_state="expanded")
+# --- PAGE SETUP & REIMBURSIFY-GRADE PROFESSIONAL CSS ---
+st.set_page_config(page_title="The Receipt Graveyard | Enterprise Reimbursify Suite", page_icon="🧾", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -47,27 +47,38 @@ st.markdown("""
         color: #f8fafc !important;
     }
     
-    h1 { font-size: 2.4rem !important; margin-bottom: 0.5rem !important; }
-    h2 { font-size: 1.8rem !important; }
-    h3 { font-size: 1.25rem !important; }
+    h1 { font-size: 2.6rem !important; margin-bottom: 0.5rem !important; }
+    h2 { font-size: 1.9rem !important; }
+    h3 { font-size: 1.35rem !important; }
 
     p, span, label, div {
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         color: #cbd5e1;
     }
 
-    .feature-card {
+    /* Reimbursify-Style SaaS Hero & Tier Cards */
+    .saas-hero {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(15, 23, 42, 0.8));
+        border: 1px solid rgba(37, 99, 235, 0.3);
+        border-radius: 16px;
+        padding: 2.5rem;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .tier-card {
         background: rgba(255, 255, 255, 0.02);
         backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 1.8rem;
+        height: 100%;
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
-    .feature-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(37, 99, 235, 0.4);
+    .tier-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(37, 99, 235, 0.5);
     }
 
     div.stExpander, div[data-testid="stVerticalBlock"] > div.element-container {
@@ -357,8 +368,8 @@ def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str,
 
 # --- 3. SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.markdown("### THE RECEIPT GRAVEYARD")
-    st.caption(f"Policy Version: **{active_policy['version']}**")
+    st.markdown("### REIMBURSIFY ENTERPRISE")
+    st.caption(f"Governance Engine | **{active_policy['version']}**")
     st.divider()
     
     user_role = st.radio(
@@ -398,56 +409,61 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
-# PORTAL -1: LANDING PAGE (WELCOME)
+# PORTAL -1: REIMBURSIFY-STYLE SAAS LANDING PAGE (WELCOME)
 # ==============================================================================
 if user_role == "Welcome":
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center; color: #f8fafc;'>Autonomous Corporate Expense Governance & Fraud Audit</h1>", unsafe_allow_html=True)
-    st.markdown(
-        "<p style='text-align: center; font-size: 1.15rem; max-width: 750px; margin: 0 auto 2.5rem auto; color: #94a3b8;'>"
-        "Eliminate the friction of manual receipt auditing. The Receipt Graveyard combines offline OCR, deterministic tax verification, "
-        "and multi-tier policy enforcement to instantly turn messy employee spend into compliant payroll decisions."
-        "</p>", 
-        unsafe_allow_html=True
-    )
+    
+    # Hero SaaS Banner
+    st.markdown("""
+    <div class="saas-hero">
+        <h1 style="color: #f8fafc; font-size: 2.8rem; margin-bottom: 1rem;">Automated Expense Filing & Compliance Infrastructure</h1>
+        <p style="color: #94a3b8; font-size: 1.15rem; max-width: 700px; margin: 0 auto 2rem auto; line-height: 1.6;">
+            Transform corporate expense operations with instantaneous offline receipt OCR, real-time forex conversions, 
+            and deterministic multi-tier policy enforcement built for modern finance teams.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
     with col_c2:
-        if st.button("Launch Application Portal", use_container_width=True):
-            st.toast("Navigating to Employee Portal...")
+        if st.button("Access Employee Portal", use_container_width=True):
+            st.toast("Redirecting to Employee Portal...")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    f1, f2, f3 = st.columns(3, gap="large")
-    with f1:
+    # 3 Reimbursify-Style Service Tier Cards
+    t1, t2, t3 = st.columns(3, gap="large")
+    
+    with t1:
         st.markdown("""
-        <div class="feature-card">
-            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ 01 ]</h3>
-            <h4 style="margin-bottom: 0.75rem;">Deterministic OCR Engine</h4>
+        <div class="tier-card">
+            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ Tier I ]</h3>
+            <h4 style="margin-bottom: 0.75rem;">Employee Claim Submission</h4>
             <p style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8;">
-                Extracts raw line items, dates, and currency totals instantly using secure offline processing without exposing sensitive financial data.
+                Rapid multi-currency receipt uploading with instant organizational metadata tagging, attendee tracking, and live audit pre-checks.
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-    with f2:
+    with t2:
         st.markdown("""
-        <div class="feature-card">
-            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ 02 ]</h3>
-            <h4 style="margin-bottom: 0.75rem;">Multi-Tier Policy Rules</h4>
+        <div class="tier-card">
+            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ Tier II ]</h3>
+            <h4 style="margin-bottom: 0.75rem;">Deterministic Audit Engine</h4>
             <p style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8;">
-                Dynamically enforces daily city caps, category restrictions, big-ticket GST requirements, and automated duplicate channel detection.
+                Automated math verification, duplicate channel filtering, restricted item deductions, and strict daily city cap enforcement.
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-    with f3:
+    with t3:
         st.markdown("""
-        <div class="feature-card">
-            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ 03 ]</h3>
-            <h4 style="margin-bottom: 0.75rem;">Immutable Audit Ledger</h4>
+        <div class="tier-card">
+            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ Tier III ]</h3>
+            <h4 style="margin-bottom: 0.75rem;">Finance Governance Hub</h4>
             <p style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8;">
-                Provides finance reviewers with version-controlled policy safeguards, complete transparency history, and one-click CSV payroll exports.
+                Option C version-controlled policy safeguards, unstructured document text parsing, and one-click secure payroll export ledgers.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -456,8 +472,8 @@ if user_role == "Welcome":
     st.markdown("""
     <hr style="border-color: rgba(255,255,255,0.06); margin-bottom: 2rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; font-size: 0.85rem; padding-bottom: 2rem;">
-        <div>&copy; 2026 The Receipt Graveyard Inc. All rights reserved.</div>
-        <div>Enterprise Financial Operations Platform</div>
+        <div>&copy; 2026 Reimbursify Enterprise Platform. All rights reserved.</div>
+        <div>Secured by Deterministic Compliance Architecture</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -697,7 +713,7 @@ elif user_role == "Change History":
                 **Timestamp:** `{record.get('timestamp', 'N/A')}` | **Version:** `{record['version']}`  
                 * **Updated By:** {record.get('updated_by', 'System')}  
                 * **Reason:** {record.get('reason', 'Initial release')}  
-                * **Extracted Parameters:** Filing Window = {record.get('filing_window_days', 30)}d, Big-Ticket = ₹{record.get('big_ticket_threshold', 15000):,.0f}, Tier-1 Cap = ₹{record.get('tier1_cap', 25000):,.0f}  
+                * **Extracted Parameters:** Filing Window = {record.get('filing_window_days', 30)}d, Big-Ticket = ₹{record.get('big_ticket_threshold', 15000):,.0f}, Tier-1 Cap = {record.get('tier1_cap', 25000):,.0f}  
                 ---
                 """
             )
