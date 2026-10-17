@@ -27,7 +27,7 @@ def load_lottie_url(url: str):
 lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
 lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
 
-# --- PAGE SETUP & MINIMALIST PROFESSIONAL CSS ---
+# --- PAGE SETUP & REFINED PROFESSIONAL CSS ---
 st.set_page_config(page_title="The Receipt Graveyard | Enterprise Audit OS", page_icon="■", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
@@ -47,9 +47,9 @@ st.markdown("""
         color: #f8fafc !important;
     }
     
-    h1 { font-size: 2.5rem !important; margin-bottom: 0.75rem !important; }
+    h1 { font-size: 2.4rem !important; margin-bottom: 0.5rem !important; }
     h2 { font-size: 1.8rem !important; }
-    h3 { font-size: 1.3rem !important; }
+    h3 { font-size: 1.25rem !important; }
 
     p, span, label, div {
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
@@ -65,7 +65,7 @@ st.markdown("""
         backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 12px;
-        padding: 1.8rem;
+        padding: 1.5rem;
         margin-bottom: 1rem;
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
@@ -78,32 +78,32 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.02);
         backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        margin-bottom: 0.6rem;
     }
 
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.06);
-        padding: 14px 18px;
-        border-radius: 10px;
+        padding: 12px 16px;
+        border-radius: 8px;
     }
     div[data-testid="stMetricLabel"] {
         color: #94a3b8 !important;
-        font-size: 0.8rem !important;
+        font-size: 0.75rem !important;
     }
     div[data-testid="stMetricValue"] {
         color: #f8fafc !important;
         font-weight: 800 !important;
-        font-size: 1.5rem !important;
+        font-size: 1.4rem !important;
     }
 
     section[data-testid="stSidebar"] {
         background-color: rgba(8, 11, 17, 0.98);
         border-right: 1px solid rgba(255, 255, 255, 0.04);
-        padding-top: 1.5rem;
+        padding-top: 1rem;
     }
 
     .stButton > button {
@@ -113,16 +113,16 @@ st.markdown("""
         border-radius: 8px;
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         font-weight: 700 !important;
-        font-size: 0.95rem !important;
-        letter-spacing: 0.03em;
-        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem !important;
+        letter-spacing: 0.02em;
+        padding: 0.5rem 1rem;
         transition: all 0.2s ease;
-        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
     }
     .stButton > button:hover {
         background: linear-gradient(135deg, #1d4ed8, #1e40af);
-        border-color: rgba(255, 255, 255, 0.3);
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        border-color: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
     }
 
     input, select, textarea {
@@ -131,7 +131,7 @@ st.markdown("""
         color: #f8fafc !important;
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         border-radius: 8px !important;
-        padding: 0.5rem 0.75rem !important;
+        padding: 0.4rem 0.6rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -481,7 +481,7 @@ elif user_role == "Policy Framework":
     st.markdown(f"**Active Policy Document:**\n> *{active_policy.get('document_text', 'Standard default parameters loaded.')}*")
 
 # ==============================================================================
-# PORTAL 1: EMPLOYEE PORTAL (POLISHED & ADVANCED INTAKE FORM)
+# PORTAL 1: EMPLOYEE PORTAL
 # ==============================================================================
 elif user_role == "Employee Portal":
     st.markdown("# Employee Expense Submission")
