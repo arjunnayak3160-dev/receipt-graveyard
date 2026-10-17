@@ -6,7 +6,6 @@ from PIL import Image
 import io
 import json
 
-# Try loading the free offline OCR engine
 try:
     from rapidocr_onnxruntime import RapidOCR
     ocr_engine = RapidOCR()
@@ -16,7 +15,6 @@ except Exception:
 import requests
 from streamlit_lottie import st_lottie
 
-# Helper to load Lottie animations from public JSON URLs safely
 def load_lottie_url(url: str):
     try:
         r = requests.get(url, timeout=3)
@@ -29,17 +27,17 @@ def load_lottie_url(url: str):
 lottie_scanning = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_v1yqrgec.json")
 lottie_success = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_oxefatps.json")
 
-# --- PAGE SETUP & PROFESSIONAL APPLE/LINEAR CSS THEME ---
-st.set_page_config(page_title="The Receipt Graveyard | Enterprise OS", page_icon="■", layout="wide")
+# --- PAGE SETUP & MINIMALIST PROFESSIONAL CSS ---
+st.set_page_config(page_title="The Receipt Graveyard | Enterprise Audit OS", page_icon="■", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    /* Global Futura Font & Dark Glass Theme */
+    /* Global Futura Font & Restrained Deep Navy / Blue / Off-White Palette */
     .stApp {
         background-color: #080b11;
-        background-image: radial-gradient(circle at 10% 10%, rgba(30, 41, 59, 0.5) 0%, transparent 40%),
-                          radial-gradient(circle at 90% 90%, rgba(15, 23, 42, 0.6) 0%, transparent 40%);
-        color: #e2e8f0;
+        background-image: radial-gradient(circle at 10% 10%, rgba(30, 41, 59, 0.4) 0%, transparent 40%),
+                          radial-gradient(circle at 90% 90%, rgba(15, 23, 42, 0.5) 0%, transparent 40%);
+        color: #f8fafc;
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
     }
     
@@ -47,26 +45,43 @@ st.markdown("""
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         font-weight: 700 !important;
         letter-spacing: -0.02em !important;
-        color: #ffffff !important;
+        color: #f8fafc !important;
     }
     
-    h1 { font-size: 2.2rem !important; }
-    h2 { font-size: 1.8rem !important; }
-    h3 { font-size: 1.35rem !important; }
-    h4 { font-size: 1.1rem !important; }
+    h1 { font-size: 2.8rem !important; margin-bottom: 0.75rem !important; }
+    h2 { font-size: 2rem !important; }
+    h3 { font-size: 1.4rem !important; }
 
     p, span, label, div {
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
+        color: #cbd5e1;
     }
 
-    /* Snug Frosted Glass Containers */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Generous White Space & Frosted Feature Cards */
+    .feature-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 1.8rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .feature-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(37, 99, 235, 0.4);
+    }
+
     div.stExpander, div[data-testid="stVerticalBlock"] > div.element-container {
         background: rgba(255, 255, 255, 0.02);
         backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 12px;
-        padding: 0.8rem 1rem;
+        padding: 1rem;
         margin-bottom: 0.75rem;
     }
 
@@ -75,55 +90,53 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.06);
-        padding: 12px 16px;
+        padding: 14px 18px;
         border-radius: 10px;
     }
     div[data-testid="stMetricLabel"] {
         color: #94a3b8 !important;
         font-size: 0.8rem !important;
-        font-weight: 600 !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #ffffff !important;
+        color: #f8fafc !important;
         font-weight: 800 !important;
         font-size: 1.5rem !important;
     }
 
-    /* Sidebar Glassmorphism */
+    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
-        background-color: rgba(8, 11, 17, 0.95);
-        backdrop-filter: blur(20px);
+        background-color: rgba(8, 11, 17, 0.98);
         border-right: 1px solid rgba(255, 255, 255, 0.04);
+        padding-top: 1.5rem;
     }
 
-    /* Professional Action Buttons */
+    /* High-Contrast CTA Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: white;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 8px;
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        letter-spacing: 0.02em;
-        padding: 0.5rem 1rem;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        letter-spacing: 0.03em;
+        padding: 0.6rem 1.2rem;
         transition: all 0.2s ease;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
     }
     .stButton > button:hover {
         background: linear-gradient(135deg, #1d4ed8, #1e40af);
-        border-color: rgba(255, 255, 255, 0.25);
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+        border-color: rgba(255, 255, 255, 0.3);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
     }
 
-    /* Inputs & Selectboxes */
     input, select, textarea {
         background-color: rgba(255, 255, 255, 0.03) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        color: #ffffff !important;
+        color: #f8fafc !important;
         font-family: "Futura", "Trebuchet MS", Arial, sans-serif !important;
         border-radius: 8px !important;
-        font-weight: 500 !important;
+        padding: 0.5rem 0.75rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -325,12 +338,13 @@ def run_deterministic_audit(receipt: dict, employee_profile: dict, context: str,
 
 # --- 3. SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.markdown("### RECEIPT GRAVEYARD")
+    st.markdown("### THE RECEIPT GRAVEYARD")
     st.caption(f"Policy Version: **{active_policy['version']}**")
+    st.divider()
     
     user_role = st.radio(
         "Navigation",
-        ["Policy Framework", "Employee Portal", "Finance Reviewer Portal", "Change History"],
+        ["Welcome", "Policy Framework", "Employee Portal", "Finance Reviewer Portal", "Change History"],
         label_visibility="collapsed"
     )
     st.divider()
@@ -364,9 +378,79 @@ with st.sidebar:
         st.rerun()
 
 # ==============================================================================
+# PORTAL -1: LANDING PAGE (WELCOME)
+# ==============================================================================
+if user_role == "Welcome":
+    # Hero Section
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #f8fafc;'>Autonomous Corporate Expense Governance & Fraud Audit</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align: center; font-size: 1.15rem; max-width: 750px; margin: 0 auto 2.5rem auto; color: #94a3b8;'>"
+        "Eliminate the friction of manual receipt auditing. The Receipt Graveyard combines offline OCR, deterministic tax verification, "
+        "and multi-tier policy enforcement to instantly turn messy employee spend into compliant payroll decisions."
+        "</p>", 
+        unsafe_allow_html=True
+    )
+
+    # High-Contrast CTA Button Container
+    col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
+    with col_c2:
+        if st.button("Launch Application Portal", use_container_width=True):
+            st.toast("Navigating to Employee Portal...", icon="■")
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # 3-4 Feature Cards with Clean Vector Symbols
+    f1, f2, f3 = st.columns(3, gap="large")
+    
+    with f1:
+        st.markdown("""
+        <div class="feature-card">
+            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ 01 ]</h3>
+            <h4 style="margin-bottom: 0.75rem;">Deterministic OCR Engine</h4>
+            <p style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8;">
+                Extracts raw line items, dates, and currency totals instantly using secure offline processing without exposing sensitive financial data.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with f2:
+        st.markdown("""
+        <div class="feature-card">
+            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ 02 ]</h3>
+            <h4 style="margin-bottom: 0.75rem;">Multi-Tier Policy Rules</h4>
+            <p style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8;">
+                Dynamically enforces daily city caps, category restrictions, big-ticket GST requirements, and automated duplicate channel detection.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with f3:
+        st.markdown("""
+        <div class="feature-card">
+            <h3 style="color: #60a5fa; margin-bottom: 0.5rem;">[ 03 ]</h3>
+            <h4 style="margin-bottom: 0.75rem;">Immutable Audit Ledger</h4>
+            <p style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8;">
+                Provides finance reviewers with version-controlled policy safeguards, complete transparency history, and one-click CSV payroll exports.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    
+    # Simple Professional Footer
+    st.markdown("""
+    <hr style="border-color: rgba(255,255,255,0.06); margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; font-size: 0.85rem; padding-bottom: 2rem;">
+        <div>&copy; 2026 The Receipt Graveyard Inc. All rights reserved.</div>
+        <div>Enterprise Financial Operations Platform</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ==============================================================================
 # PORTAL 0: POLICY FRAMEWORK VIEW
 # ==============================================================================
-if user_role == "Policy Framework":
+elif user_role == "Policy Framework":
     st.title("Corporate Financial Policy Framework")
     st.markdown("Active governance rules, automated thresholds, and compliance parameters.")
 
@@ -430,7 +514,7 @@ elif user_role == "Employee Portal":
 
             if lottie_scanning:
                 with animation_placeholder:
-                    st_lottie(lottie_scanning, height=120, key="scanning")
+                    st_lottie(lottie_scanning, height=100, key="scanning")
             
             status_text.markdown("<p style='text-align: center; color: #60a5fa;'>Analyzing OCR text, verifying tax logic, and validating policy...</p>", unsafe_allow_html=True)
 
@@ -472,7 +556,7 @@ elif user_role == "Employee Portal":
             status_text.empty()
 
             if lottie_success:
-                st_lottie(lottie_success, height=80, key="success_anim")
+                st_lottie(lottie_success, height=70, key="success_anim")
             
             st.success("Receipt successfully scanned, audited, and added to ledger.")
 
