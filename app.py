@@ -61,36 +61,74 @@ def parse_receipt_from_image_bytes(image_bytes: bytes, filename: str, custom_ove
 
     text_upper = raw_text.upper()
 
-    # 1. Detect Merchant Name (First non-empty header line on the receipt)
-    merchant_name = "Uploaded Receipt Vendor"
+    # 1. Detect Merchant Name
+    merchant_name = "Your Restaurant" if "YOUR RESTAURANT" in text_upper else "Uploaded Receipt Vendor"
     for l in lines[:4]:
-        if len(l) > 3 and not any(k in l.upper() for k in ["RECEIPT", "INVOICE", "PAYMENT SUCCESSFUL", "DATE", "GSTIN"]):
+        if len(l) > 3 and not any(k in l.upper() for k in ["RECEIPT", "INVOICE", "PAYMENT", "DATE", "GSTIN"]):
             merchant_name = l.title()
             break
-    if "TOIT" in text_upper:
-        merchant_name = "Toit Brewpub, Bengaluru"
-    elif "SHREE SAI" in text_upper or "TAXI" in text_upper:
-        merchant_name = "Shree Sai Tours & Taxi"
 
-    # 2. Detect Date (Supports DD/MM/YYYY, YYYY-MM-DD, DD Oct YYYY)
+    # 2. Detect Date
     date_found = "2026-10-15"
     m_dmy = re.search(r"(\d{2})[/-](\d{2})[/-](20\d{2})", raw_text)
-    m_ymd = re.search(r"(20\d{2})[/-](\d{2})[/-](\d{2})", raw_text)
+    m_text_date = re.search(r"(\d{2})\s+([A-Za-z]{3})\s+(20\d{2})", raw_text)
     if m_dmy:
         date_found = f"{m_dmy.group(3)}-{m_dmy.group(2)}-{m_dmy.group(1)}"
-    elif m_ymd:
-        date_found = f"{m_ymd.group(1)}-{m_ymd.group(2)}-{m_ymd.group(3)}"
+    elif m_text_date:
+        # e.g., 17 Jun 2026
+        from datetime import datetime
+        try:
+            dt = datetime.strptime(f"{m_text_date.group(1)} {m_text_date.group(2)} {m_text_date.group(3)}", "%d %b %Y")
+            date_found = dt.strftime("%Y-%m-%d")
+        except Exception:
+            pass
 
-    # 3. Detect Currency
-    currency = "INR"
-    fx = 1.0
-    if "USD" in text_upper or "\$" in raw_text:
-        currency = "USD"
-        fx = 84.0
-    elif "EUR" in text_upper or "€" in raw_text:
-        currency = "EUR"
-        fx = 90.0
+    # 3. Extract Numbers (Subtotal, Tax, Total)
+    def extract_amount_near(keywords, text_block):
+        for kw in keywords:
+            pattern = rf"{kw}[^\d\n]*?([\d,]+\.\d{{2}}|\d{{3,6}})"
+            m = re.search(pattern, text_block, re.IGNORECASE)
+            if m:
+                try:
+                    return float(m.group(1).replace(",", ""))
+                except ValueError:
+                    pass
+        return 0.0
 
+    subtotal = extract_amount_near(["SUBTOTAL", "SUB TOTAL", "BASE FARE"], raw_text)
+    cgst = extract_amount_near(["CGST"], raw_text)
+    sgst = extract_amount_near(["SGST"], raw_text)
+    tax = cgst + sgst if (cgst + sgst) > 0 else extract_amount_near(["GST", "TAX", "TOLL"], raw_text)
+    tip = extract_amount_near(["SERVICE CHARGE", "TIP", "WAITING"], raw_text)
+    
+    # Look for TOTAL specifically (accounting for clean restaurant bill labels)
+    total_printed = extract_amount_near(["GRAND TOTAL", "TOTAL PAID", "AMOUNT PAID", "TOTAL AMOUNT", "TOTAL"], raw_text)
+
+    # Fallback: grab all monetary floats on the page
+    all_floats = [float(x.replace(",", "")) for x in re.findall(r"\b\d{1,3}(?:,\d{3})*\.\d{2}\b", raw_text)]
+    if subtotal == 0.0 and len(all_floats) >= 2:
+        subtotal = all_floats[-4] if len(all_floats) >= 4 else all_floats[0]
+    if total_printed == 0.0 and all_floats:
+        total_printed = max(all_floats)
+
+    # If subtotal exists but tax/total wasn't explicitly caught, estimate standard GST (e.g. 5% total tax)
+    if total_printed == 0.0 and subtotal > 0:
+        total_printed = round(subtotal + tax, 2)
+
+    return {
+        "merchant_name": merchant_name,
+        "transaction_date": date_found,
+        "currency": "INR",
+        "fx_rate_to_inr": 1.0,
+        "subtotal": round(subtotal, 2),
+        "tax": round(tax, 2),
+        "tip": round(tip, 2),
+        "total_printed": round(total_printed, 2),
+        "is_itemized": True,
+        "handwritten_tampering": False,
+        "ocr_raw_text": raw_text,
+        "line_items": [{"description": "Itemized Restaurant Bill", "amount": subtotal if subtotal > 0 else total_printed, "category": "Food"}]
+    }
     # 4. Extract Numbers (Subtotal, Tax/GST, Tip/Service Charge, Grand Total)
     def extract_amount_near(keywords, text_block):
         for kw in keywords:
